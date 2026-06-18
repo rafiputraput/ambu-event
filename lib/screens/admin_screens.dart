@@ -7,6 +7,8 @@
 // UPDATED: [FIX 4] Auto-lepas armada konflik dari selection saat sheet dibuka
 // UPDATED: [FIX 5] Toggle switch available di AmbCard DISABLED (hanya indikator)
 // UPDATED: [FIX 6] Hapus booking via deleteBooking (recalculate ambulans otomatis)
+// UPDATED: [FIX 7] Petugas konflik di Edit Booking Sheet = DISABLED (tidak bisa dipilih)
+// UPDATED: [FIX 8] Auto-lepas petugas konflik dari selection saat sheet dibuka
 // ignore_for_file: avoid_print
 
 import 'dart:io';
@@ -774,8 +776,10 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
   List<_AssignedAmbulance> _selectedAmbulance = [];
   bool _saving = false;
 
-  // Map untuk menyimpan info konflik lengkap: ambulanceId → List<AmbulanceConflictInfo>
+  // Konflik ambulans: ambulanceId → list info booking yang memakainya
   Map<String, List<AmbulanceConflictInfo>> _conflictDetail = {};
+  // Konflik petugas: petugasId → list info booking yang sudah menugaskannya
+  Map<String, List<AmbulanceConflictInfo>> _petugasConflictDetail = {};
   bool _loadingConflict = false;
 
   late final Stream<QuerySnapshot> _petugasStream;
@@ -788,6 +792,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     super.initState();
     _status = widget.data['status'] ?? 'Menunggu Konfirmasi';
 
+    // Parse petugas terpilih saat ini
     final rawPt = widget.data['petugasList'];
     if (rawPt is List && rawPt.isNotEmpty) {
       _selectedPetugas = rawPt
@@ -803,6 +808,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     }
     _previousPetugas = List.from(_selectedPetugas);
 
+    // Parse armada terpilih saat ini
     final rawAmb = widget.data['ambulanceList'];
     if (rawAmb is List && rawAmb.isNotEmpty) {
       _selectedAmbulance = rawAmb
@@ -825,20 +831,36 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     }
   }
 
+  /// Load konflik ambulans DAN petugas secara paralel
   Future<void> _loadConflictDetail() async {
     setState(() => _loadingConflict = true);
     try {
-      final detail = await widget.fs.getAmbulanceConflictDetail(
-        date: _bookingDate,
-        excludeBookingId: widget.docId,
-      );
+      final results = await Future.wait([
+        widget.fs.getAmbulanceConflictDetail(
+          date: _bookingDate,
+          excludeBookingId: widget.docId,
+        ),
+        widget.fs.getPetugasConflictDetail(
+          date: _bookingDate,
+          excludeBookingId: widget.docId,
+        ),
+      ]);
+
       if (mounted) {
         setState(() {
-          _conflictDetail = detail;
-          // [FIX] Auto-lepas armada yang ternyata konflik dari daftar terpilih
+          _conflictDetail        = results[0];
+          _petugasConflictDetail = results[1];
+
+          // Auto-lepas armada yang konflik dari selection
           _selectedAmbulance.removeWhere((a) {
-            final conflicts = detail[a.id];
-            return conflicts != null && conflicts.isNotEmpty;
+            final c = _conflictDetail[a.id];
+            return c != null && c.isNotEmpty;
+          });
+
+          // Auto-lepas petugas yang konflik dari selection
+          _selectedPetugas.removeWhere((p) {
+            final c = _petugasConflictDetail[p.id];
+            return c != null && c.isNotEmpty;
           });
         });
       }
@@ -849,13 +871,41 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     }
   }
 
-  int get _totalConflicts => _conflictDetail.length;
+  int get _totalAmbConflicts     => _conflictDetail.length;
+  int get _totalPetugasConflicts => _petugasConflictDetail.length;
 
+  /// Toggle pilih/batal-pilih petugas — blok jika konflik
   void _togglePetugas(QueryDocumentSnapshot doc) {
     final dData  = doc.data() as Map<String, dynamic>;
     final id     = doc.id;
     final name   = dData['name']       as String? ?? '';
     final faskes = dData['faskesName'] as String? ?? '';
+
+    final conflicts   = _petugasConflictDetail[id];
+    final hasConflict = conflicts != null && conflicts.isNotEmpty;
+    final alreadySel  = _selectedPetugas.any((p) => p.id == id);
+
+    if (hasConflict && !alreadySel) {
+      final namaEvent = conflicts!.first.eventName;
+      final status    = conflicts.first.status;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(children: [
+          const Icon(Icons.lock_rounded, color: Colors.white, size: 15),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Petugas ini sudah bertugas di "$namaEvent" ($status)',
+            style: const TextStyle(fontSize: 12),
+          )),
+        ]),
+        backgroundColor: _orange,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(12),
+        duration: const Duration(seconds: 3),
+      ));
+      return;
+    }
+
     setState(() {
       final idx = _selectedPetugas.indexWhere((p) => p.id == id);
       if (idx >= 0) {
@@ -866,7 +916,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     });
   }
 
-  // [FIX] Armada konflik langsung diblok — tidak ada dialog "Tetap Pilih"
+  /// Toggle pilih/batal-pilih armada — blok jika konflik
   void _toggleAmbulance(QueryDocumentSnapshot doc) {
     final id      = doc.id;
     final dData   = doc.data() as Map<String, dynamic>;
@@ -880,7 +930,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     final hasConflict = conflicts != null && conflicts.isNotEmpty;
     final alreadySel  = _selectedAmbulance.any((a) => a.id == id);
 
-    // Jika ada konflik dan belum dipilih → blok, tampilkan snackbar info
     if (hasConflict && !alreadySel) {
       final namaEvent = conflicts!.first.eventName;
       final status    = conflicts.first.status;
@@ -902,7 +951,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       return;
     }
 
-    // Toggle normal (pilih / batal pilih)
     setState(() {
       final idx = _selectedAmbulance.indexWhere((a) => a.id == id);
       if (idx >= 0) {
@@ -982,7 +1030,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       );
     } catch(e) { print('Notif user: $e'); }
 
-    // Notifikasi ke petugas
+    // Notifikasi ke petugas (yang baru di-assign / dilepas)
     try {
       final prevIds    = _previousPetugas.map((p) => p.id).toSet();
       final currentIds = _selectedPetugas.map((p) => p.id).toSet();
@@ -1052,6 +1100,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               decoration: BoxDecoration(color: _border, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 18),
 
+          // ── Header ──────────────────────────────────────────────────
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Edit Booking', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: _textPrimary)),
@@ -1063,7 +1112,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             _iconBtn(Icons.delete_outline_rounded, _red, _delete),
           ]),
 
-          // Info tanggal + status konflik
+          // ── Info tanggal + badge konflik gabungan ────────────────────
           if (_bookingDate.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
@@ -1078,7 +1127,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                 if (_loadingConflict)
                   const SizedBox(width: 12, height: 12,
                     child: CircularProgressIndicator(strokeWidth: 1.5, color: _orange)),
-                if (!_loadingConflict && _totalConflicts > 0) ...[
+                if (!_loadingConflict && (_totalAmbConflicts > 0 || _totalPetugasConflicts > 0)) ...[
                   const SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1086,7 +1135,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.lock_rounded, size: 11, color: _orange),
                       const SizedBox(width: 3),
-                      Text('$_totalConflicts armada terkunci',
+                      Text('${_totalAmbConflicts + _totalPetugasConflicts} terkunci',
                           style: const TextStyle(fontSize: 10, color: _orange, fontWeight: FontWeight.w600)),
                     ]),
                   ),
@@ -1096,7 +1145,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           ],
           const SizedBox(height: 22),
 
-          // ── Status Booking ────────────────────────────────────────────
+          // ── Status Booking ───────────────────────────────────────────
           _sectionTitle('Status Booking'),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: ss.map((s) {
@@ -1117,7 +1166,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           }).toList()),
           const SizedBox(height: 24),
 
-          // ── Assign Petugas ────────────────────────────────────────────
+          // ══════════════════════════════════════════════════════════════
+          // ASSIGN PETUGAS
+          // ══════════════════════════════════════════════════════════════
           Row(children: [
             _sectionTitle('Assign Petugas'),
             const Spacer(),
@@ -1134,6 +1185,31 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               style: TextStyle(fontSize: 11, color: _textMuted)),
           const SizedBox(height: 8),
 
+          // Banner petugas terkunci
+          if (_totalPetugasConflicts > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _orangeLight,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _orange.withValues(alpha: 0.4)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.lock_rounded, color: _orange, size: 15),
+                const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('$_totalPetugasConflicts petugas terkunci — sudah bertugas di booking lain pada tanggal ini.',
+                      style: const TextStyle(fontSize: 11, color: _orange, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  const Text('Mencakup booking Disetujui maupun Menunggu Konfirmasi.',
+                      style: TextStyle(fontSize: 10, color: _orange)),
+                ])),
+              ]),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // Chip petugas yang sudah dipilih
           if (_selectedPetugas.isNotEmpty) ...[
             Wrap(spacing: 6, runSpacing: 6,
               children: _selectedPetugas.map((p) => _SelectedChip(
@@ -1145,6 +1221,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             const SizedBox(height: 10),
           ],
 
+          // List petugas
           StreamBuilder<QuerySnapshot>(
             stream: _petugasStream,
             builder: (ctx, snap) {
@@ -1162,6 +1239,18 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   final fsk = dd['faskesName'] as String? ?? '';
                   final sel = _selectedPetugas.any((p) => p.id == doc.id);
                   final isLast = i == list.length - 1;
+
+                  // Cek konflik petugas
+                  final ptConflicts   = _petugasConflictDetail[doc.id];
+                  final hasPtConflict = ptConflicts != null && ptConflicts.isNotEmpty;
+
+                  if (hasPtConflict) {
+                    return _buildDisabledPetugasItem(
+                      name: n, faskes: fsk,
+                      conflicts: ptConflicts!, isLast: isLast,
+                    );
+                  }
+
                   return Column(children: [
                     InkWell(
                       onTap: () => _togglePetugas(doc),
@@ -1199,7 +1288,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           ),
           const SizedBox(height: 22),
 
-          // ── Assign Armada ─────────────────────────────────────────────
+          // ══════════════════════════════════════════════════════════════
+          // ASSIGN ARMADA
+          // ══════════════════════════════════════════════════════════════
           Row(children: [
             _sectionTitle('Assign Armada'),
             const Spacer(),
@@ -1213,8 +1304,8 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           ]),
           const SizedBox(height: 4),
 
-          // Banner info armada terkunci
-          if (_totalConflicts > 0) ...[
+          // Banner armada terkunci
+          if (_totalAmbConflicts > 0) ...[
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -1226,7 +1317,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                 const Icon(Icons.lock_rounded, color: _orange, size: 15),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$_totalConflicts armada dikunci — sudah terjadwal di booking lain pada tanggal ini.',
+                  Text('$_totalAmbConflicts armada dikunci — sudah terjadwal di booking lain pada tanggal ini.',
                       style: const TextStyle(fontSize: 11, color: _orange, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   const Text('Mencakup booking Disetujui maupun Menunggu Konfirmasi.',
@@ -1241,6 +1332,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               style: TextStyle(fontSize: 11, color: _textMuted)),
           const SizedBox(height: 10),
 
+          // Chip armada yang sudah dipilih
           if (_selectedAmbulance.isNotEmpty) ...[
             Wrap(spacing: 6, runSpacing: 6,
               children: _selectedAmbulance.map((a) => _SelectedChip(
@@ -1253,6 +1345,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             const SizedBox(height: 10),
           ],
 
+          // List armada
           StreamBuilder<QuerySnapshot>(
             stream: _ambStream,
             builder: (ctx, snap) {
@@ -1268,7 +1361,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   final sel   = _selectedAmbulance.any((a) => a.id == doc.id);
 
                   final conflicts   = _conflictDetail[doc.id];
-                  // [FIX] Armada konflik = DISABLED, tidak bisa dipilih sama sekali
                   final hasConflict = conflicts != null && conflicts.isNotEmpty;
 
                   String rawVName = dd['vehicleName'] as String? ?? '';
@@ -1280,19 +1372,13 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   if (type.contains('Gawat Darurat')) { typeColor = _red; typeIcon = Icons.emergency_rounded; }
                   else if (type.contains('Transport')) { typeColor = _blue; typeIcon = Icons.airport_shuttle_rounded; }
 
-                  // [FIX] Render berbeda: armada konflik = card abu-abu disabled
                   if (hasConflict) {
                     return _buildDisabledAmbCard(
-                      plate: plate,
-                      type: type,
-                      typeIcon: typeIcon,
-                      vName: vName,
-                      pName: pName,
-                      conflicts: conflicts!,
+                      plate: plate, type: type, typeIcon: typeIcon,
+                      vName: vName, pName: pName, conflicts: conflicts!,
                     );
                   }
 
-                  // Armada tersedia = kartu normal, bisa diklik
                   return GestureDetector(
                     onTap: () => _toggleAmbulance(doc),
                     child: AnimatedContainer(
@@ -1301,12 +1387,8 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                       decoration: BoxDecoration(
                         color: sel ? _blueLight : Colors.white,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: sel ? _blue : _border,
-                          width: sel ? 1.5 : 1,
-                        ),
-                        boxShadow: [BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2))],
+                        border: Border.all(color: sel ? _blue : _border, width: sel ? 1.5 : 1),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 5, offset: const Offset(0, 2))],
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
@@ -1325,9 +1407,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                               vName.isNotEmpty ? vName : '— Nama belum diatur —',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 13,
-                                color: vName.isNotEmpty
-                                    ? (sel ? _blue : _textPrimary)
-                                    : _textMuted,
+                                color: vName.isNotEmpty ? (sel ? _blue : _textPrimary) : _textMuted,
                                 fontStyle: vName.isNotEmpty ? FontStyle.normal : FontStyle.italic,
                               ),
                             ),
@@ -1353,7 +1433,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                               ]),
                             ],
                             const SizedBox(height: 5),
-                            // Status tersedia (indikator saja, tidak bisa diklik manual)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                               decoration: BoxDecoration(
@@ -1370,7 +1449,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                               ]),
                             ),
                           ])),
-                          // Checkbox normal
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
                             width: 22, height: 22,
@@ -1409,7 +1487,85 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     );
   }
 
-  // [NEW] Card armada yang DISABLED karena sudah terbooking di tanggal yang sama
+  // ── Disabled item petugas (sudah bertugas di booking lain) ────────
+  Widget _buildDisabledPetugasItem({
+    required String name,
+    required String faskes,
+    required List<AmbulanceConflictInfo> conflicts,
+    required bool isLast,
+  }) {
+    final firstConflict = conflicts.first;
+    final moreCount     = conflicts.length - 1;
+
+    return Column(children: [
+      Container(
+        color: const Color(0xFFF9F9F9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(children: [
+          // Gembok sebagai pengganti checkbox
+          Container(
+            width: 20, height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(Icons.lock_rounded, size: 12, color: Colors.grey.shade400),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.lock_rounded, size: 11, color: Colors.grey),
+              const SizedBox(width: 4),
+              Expanded(child: Text(name, style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.grey.shade500,
+                  decoration: TextDecoration.lineThrough,
+                  decorationColor: Colors.grey.shade400))),
+            ]),
+            if (faskes.isNotEmpty)
+              Text(faskes, style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+            const SizedBox(height: 4),
+            // Label "Bertugas di: ..."
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _orangeLight,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _orange.withValues(alpha: 0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.event_busy_rounded, size: 10, color: _orange),
+                const SizedBox(width: 4),
+                Flexible(child: Text(
+                  'Bertugas: "${firstConflict.eventName}"'
+                  '${moreCount > 0 ? ' +$moreCount lagi' : ''}',
+                  style: const TextStyle(fontSize: 10, color: _orange, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                )),
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: firstConflict.status == 'Disetujui' ? _green : _orange,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    firstConflict.status == 'Disetujui' ? 'Disetujui' : 'Menunggu',
+                    style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ]),
+            ),
+          ])),
+          Icon(Icons.medical_services_rounded, size: 13, color: Colors.grey.shade200),
+        ]),
+      ),
+      if (!isLast) Divider(height: 1, indent: 46, color: _border),
+    ]);
+  }
+
+  // ── Disabled card armada (sudah dipakai di booking lain) ──────────
   Widget _buildDisabledAmbCard({
     required String plate,
     required String type,
@@ -1431,7 +1587,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Icon abu-abu
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
@@ -1442,15 +1597,13 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           ),
           const SizedBox(width: 11),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Nama kendaraan dicoret
             Row(children: [
               const Icon(Icons.lock_rounded, size: 12, color: Colors.grey),
               const SizedBox(width: 5),
               Expanded(child: Text(
                 vName.isNotEmpty ? vName : '— Nama belum diatur —',
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                  fontWeight: FontWeight.w600, fontSize: 13,
                   color: Colors.grey.shade500,
                   decoration: TextDecoration.lineThrough,
                   decorationColor: Colors.grey.shade400,
@@ -1458,15 +1611,10 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               )),
             ]),
             const SizedBox(height: 3),
-            // Plat nomor
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(5),
-              ),
-              child: Text(plate,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Colors.grey.shade500)),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(5)),
+              child: Text(plate, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Colors.grey.shade500)),
             ),
             if (type.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -1481,13 +1629,10 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               Row(children: [
                 Icon(Icons.medical_services_rounded, size: 10, color: Colors.grey.shade400),
                 const SizedBox(width: 3),
-                Expanded(child: Text(pName,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-                    overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(pName, style: TextStyle(fontSize: 10, color: Colors.grey.shade400), overflow: TextOverflow.ellipsis)),
               ]),
             ],
             const SizedBox(height: 6),
-            // Label "Terpakai di..." — info booking yang menggunakan armada ini
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -1505,7 +1650,6 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   overflow: TextOverflow.ellipsis,
                 )),
                 const SizedBox(width: 5),
-                // Badge status booking konflik
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
@@ -1520,13 +1664,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               ]),
             ),
           ])),
-          // Gembok sebagai pengganti checkbox
           Container(
             width: 22, height: 22,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(6),
-            ),
+            decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
             child: Icon(Icons.lock_rounded, size: 13, color: Colors.grey.shade400),
           ),
         ]),
@@ -2996,7 +3136,6 @@ class _AmbCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis)),
             ]),
             const SizedBox(height: 7),
-            // Status available hanya indikator — tidak bisa diklik manual
             Row(children: [
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: availBg, borderRadius: BorderRadius.circular(20)),
