@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "446902447876",
+    "project_id": "ambuevent",
+    "storage_bucket": "ambuevent.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:446902447876:android:de5e700c3e47580035ea51",
+        "android_client_info": {
+          "package_name": "com.example.ambuevent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQ8_dBqeNOanvnptDBE3AMlE5X4SENT1g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

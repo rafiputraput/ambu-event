@@ -1,0 +1,48 @@
+name: ambuevent
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.5.4
+  cloud_firestore: ^5.6.9
+  google_sign_in: ^6.2.1
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  geolocator: ^11.0.0
+  http: ^1.2.0
+  flutter_map_cancellable_tile_provider: ^2.0.0
+  file_picker: ^8.0.0
+  onesignal_flutter: ^5.2.6
+  flutter_image_compress: ^2.3.0
+  path_provider: ^2.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# ✅ Konfigurasi icon launcher
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo_ambuevent.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo_ambuevent.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+
+  # ✅ Assets dipindah ke sini (bukan di dalam flutter: sdk)
+  assets:
+    - assets/images/logo_ambuevent.png
