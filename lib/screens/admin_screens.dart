@@ -851,17 +851,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           _conflictDetail        = results[0];
           _petugasConflictDetail = results[1];
 
-          // Auto-lepas armada yang konflik dari selection
-          _selectedAmbulance.removeWhere((a) {
-            final c = _conflictDetail[a.id];
-            return c != null && c.isNotEmpty;
-          });
-
-          // Auto-lepas petugas yang konflik dari selection
-          _selectedPetugas.removeWhere((p) {
-            final c = _petugasConflictDetail[p.id];
-            return c != null && c.isNotEmpty;
-          });
+          // Catatan: TIDAK auto-lepas armada/petugas yang sudah di-assign
+          // ke booking ini. Admin yang memutuskan apakah ingin melepas atau tidak.
+          // Conflict detail hanya ditampilkan sebagai warning di UI.
         });
       }
     } catch (e) {
@@ -989,8 +981,21 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       final oldId = widget.data['ambulanceId'] as String?;
       if (oldId != null && oldId.isNotEmpty) prevAmbulanceIds.add(oldId);
     }
-
     final newAmbulanceIds = _selectedAmbulance.map((a) => a.id).toList();
+
+    // Kumpulkan ID petugas SEBELUM diupdate
+    final prevPetugasIds = <String>[];
+    final rawPrevPt = widget.data['petugasList'];
+    if (rawPrevPt is List && rawPrevPt.isNotEmpty) {
+      for (final e in rawPrevPt) {
+        final id = (e as Map<String, dynamic>)['id'] as String?;
+        if (id != null && id.isNotEmpty) prevPetugasIds.add(id);
+      }
+    } else {
+      final oldId = widget.data['petugasId'] as String?;
+      if (oldId != null && oldId.isNotEmpty) prevPetugasIds.add(oldId);
+    }
+    final newPetugasIds = _selectedPetugas.map((p) => p.id).toList();
 
     // Update booking di Firestore
     await FirebaseFirestore.instance
@@ -1015,6 +1020,16 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       );
     } catch (e) {
       print('Recalculate ambulance error: $e');
+    }
+
+    // Recalculate ketersediaan petugas yang terdampak
+    try {
+      await widget.fs.recalculateAllAffectedPetugas(
+        prevPetugasIds: prevPetugasIds,
+        newPetugasIds:  newPetugasIds,
+      );
+    } catch (e) {
+      print('Recalculate petugas error: $e');
     }
 
     // Notifikasi ke user
