@@ -360,6 +360,100 @@ class FirestoreService {
     }
   }
 
+  /// Recalculate ketersediaan petugas berdasarkan SEMUA booking
+  /// aktif yang ada (bukan hanya "Disetujui").
+  ///
+  /// Petugas dianggap TIDAK TERSEDIA jika ia ada dalam setidaknya satu
+  /// booking yang berstatus "Disetujui" ATAU "Menunggu Konfirmasi".
+  /// Petugas kembali TERSEDIA jika semua bookingnya sudah Selesai/Ditolak.
+  Future<void> recalculatePetugasAvailability(String petugasId) async {
+    if (petugasId.trim().isEmpty) return;
+
+    try {
+      bool isBusy = false;
+
+      for (final status in _activeStatuses) {
+        if (isBusy) break; // sudah ketemu, tidak perlu lanjut
+
+        final snap = await _firestore
+            .collection('bookings')
+            .where('status', isEqualTo: status)
+            .get();
+
+        for (final doc in snap.docs) {
+          final data = doc.data();
+
+          // Cek format lama (single)
+          final oldId = data['petugasId'] as String?;
+          if (oldId != null && oldId == petugasId) {
+            isBusy = true;
+            break;
+          }
+
+          // Cek format baru (list)
+          final list = data['petugasList'];
+          if (list is List) {
+            for (final item in list) {
+              if (item is Map && item['id'] == petugasId) {
+                isBusy = true;
+                break;
+              }
+            }
+          }
+          if (isBusy) break;
+        }
+      }
+
+      await _firestore
+          .collection('petugas')
+          .doc(petugasId)
+          .update({'available': !isBusy});
+
+      print('[FS] Petugas $petugasId → available=${!isBusy}');
+    } catch (e) {
+      print('[FS] recalculatePetugasAvailability error ($petugasId): $e');
+    }
+  }
+
+  /// Recalculate ketersediaan untuk semua petugas yang terdampak
+  /// perubahan assignment pada sebuah booking.
+  ///
+  /// [prevPetugasIds] — ID sebelum perubahan
+  /// [newPetugasIds]  — ID setelah perubahan
+  Future<void> recalculateAllAffectedPetugas({
+    required List<String> prevPetugasIds,
+    required List<String> newPetugasIds,
+  }) async {
+    // Gabung semua ID yang terdampak (lama maupun baru), deduplicate
+    final affected = <String>{
+      ...prevPetugasIds.where((id) => id.isNotEmpty),
+      ...newPetugasIds.where((id) => id.isNotEmpty),
+    };
+
+    print('[FS] Recalculate ${affected.length} petugas terdampak: $affected');
+
+    for (final id in affected) {
+      await recalculatePetugasAvailability(id);
+    }
+  }
+
+  /// Recalculate SEMUA petugas sekaligus.
+  /// Dipanggil sekali untuk sinkronisasi penuh (misalnya saat app pertama buka).
+  Future<void> recalculateAllPetugas() async {
+    try {
+      final ptSnap = await _firestore.collection('petugas').get();
+      print('[FS] Recalculate semua: ${ptSnap.docs.length} petugas');
+
+      for (final doc in ptSnap.docs) {
+        await recalculatePetugasAvailability(doc.id);
+      }
+
+      print('[FS] Recalculate semua petugas selesai.');
+    } catch (e) {
+      print('[FS] recalculateAllPetugas error: $e');
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // BOOKING CRUD
   // ══════════════════════════════════════════════════════════════════

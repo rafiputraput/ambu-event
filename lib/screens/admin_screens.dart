@@ -10,7 +10,7 @@
 // UPDATED: [FIX 7] Petugas konflik di Edit Booking Sheet = DISABLED (tidak bisa dipilih)
 // UPDATED: [FIX 8] Auto-lepas petugas konflik dari selection saat sheet dibuka
 // ignore_for_file: avoid_print
-
+ 
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:convert';
@@ -21,38 +21,38 @@ import '../service/firestore_service.dart';
 import '../service/notification_service.dart';
 import '../service/auth_service.dart';
 import '../service/map_service.dart';
-
+ 
 // ─────────────────────────── PALETTE (soft/muted) ─────────────────────
 const _red    = Color(0xFFC0392B);
 const _green  = Color(0xFF2E7D6B);
 const _blue   = Color(0xFF4A6FA5);
 const _orange = Color(0xFFB7600A);
 const _bg     = Color(0xFFF7F5F3);
-
+ 
 const _redLight    = Color(0xFFEDD9D7);
 const _greenLight  = Color(0xFFD0EAE5);
 const _blueLight   = Color(0xFFD6E4F0);
 const _orangeLight = Color(0xFFF5E6D3);
-
+ 
 const _border      = Color(0xFFE8E4E1);
 const _textPrimary = Color(0xFF2C2520);
 const _textMuted   = Color(0xFF7A706A);
-
+ 
 // ─────────────────────────── PHOTO MODEL ──────────────────────────────
 class _Photo {
   final String name;
   final String base64Data;
   _Photo({required this.name, required this.base64Data});
-
+ 
   bool get hasData => base64Data.isNotEmpty;
-
+ 
   Uint8List? get bytes {
     if (!hasData) return null;
     try { return base64Decode(base64Data); }
     catch (_) { return null; }
   }
 }
-
+ 
 // ─────────────────────────── FASKES HELPERS ───────────────────────────
 List<Map<String, String>> _getFaskesList() {
   final list = MapService().getPuskesmasList();
@@ -61,56 +61,56 @@ List<Map<String, String>> _getFaskesList() {
     'name': p.name,
   }).toList();
 }
-
+ 
 // ─────────────────────────── TIPE KENDARAAN ───────────────────────────
 const List<Map<String, dynamic>> _vehicleTypes = [
   {'label': 'Ambulans Gawat Darurat', 'icon': Icons.emergency_rounded,        'color': _red},
   {'label': 'Ambulans Transport',     'icon': Icons.airport_shuttle_rounded,   'color': _blue},
 ];
-
+ 
 const List<Map<String, dynamic>> _vehicleNames = [
   {'key': 'hyundai_starex_1', 'label': 'Hyundai Mover Starex', 'icon': Icons.airport_shuttle_rounded, 'color': _red},
   {'key': 'hyundai_starex_2', 'label': 'Hyundai Mover Starex', 'icon': Icons.airport_shuttle_rounded, 'color': _blue},
   {'key': 'toyota_hiace',     'label': 'Toyota Hiace Premio',  'icon': Icons.directions_bus_rounded,  'color': _green},
   {'key': 'suzuki_apv',       'label': 'Suzuki APV',           'icon': Icons.directions_car_rounded,  'color': _orange},
 ];
-
+ 
 // ─────────────────────────── ASSIGN MODELS ────────────────────────────
 class _AssignedPetugas {
   final String id;
   final String name;
   final String faskes;
   _AssignedPetugas({required this.id, required this.name, required this.faskes});
-
+ 
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'faskes': faskes};
-
+ 
   factory _AssignedPetugas.fromMap(Map<String, dynamic> m) => _AssignedPetugas(
         id:     m['id']     ?? '',
         name:   m['name']   ?? '',
         faskes: m['faskes'] ?? '',
       );
 }
-
+ 
 class _AssignedAmbulance {
   final String id;
   final String plate;
   final String type;
   final String vehicleName;
-
+ 
   _AssignedAmbulance({
     required this.id,
     required this.plate,
     required this.type,
     this.vehicleName = '',
   });
-
+ 
   Map<String, dynamic> toMap() => {
     'id': id,
     'plate': plate,
     'type': type,
     'vehicleName': vehicleName,
   };
-
+ 
   factory _AssignedAmbulance.fromMap(Map<String, dynamic> m) => _AssignedAmbulance(
         id:          m['id']          ?? '',
         plate:       m['plate']       ?? '',
@@ -118,24 +118,24 @@ class _AssignedAmbulance {
         vehicleName: m['vehicleName'] ?? '',
       );
 }
-
+ 
 // ═══════════════════════════ ADMIN KEGIATAN SCREEN ═══════════════════════
 class AdminKegiatanScreen extends StatefulWidget {
   final VoidCallback onBack;
   const AdminKegiatanScreen({super.key, required this.onBack});
   @override State<AdminKegiatanScreen> createState() => _AdminKegiatanState();
 }
-
+ 
 class _AdminKegiatanState extends State<AdminKegiatanScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   late final List<Stream<QuerySnapshot>> _streams;
-
+ 
   static const _tabLabels = ['Menunggu','Disetujui','Ditolak','Selesai','Rekap'];
   static const _statuses  = [
     'Menunggu Konfirmasi','Disetujui','Ditolak','Selesai'
   ];
-
+ 
   @override
   void initState() {
     super.initState();
@@ -147,10 +147,10 @@ class _AdminKegiatanState extends State<AdminKegiatanScreen>
         .snapshots(),
     ).toList();
   }
-
+ 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
-
+ 
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -204,7 +204,7 @@ class _AdminKegiatanState extends State<AdminKegiatanScreen>
     );
   }
 }
-
+ 
 // ─────────────── BOOKING LIST ─────────────────────────────────────────
 class _BookingList extends StatefulWidget {
   final Stream<QuerySnapshot> stream;
@@ -212,11 +212,11 @@ class _BookingList extends StatefulWidget {
   const _BookingList({required super.key, required this.stream, required this.statusLabel});
   @override State<_BookingList> createState() => _BookingListState();
 }
-
+ 
 class _BookingListState extends State<_BookingList>
     with AutomaticKeepAliveClientMixin {
   @override bool get wantKeepAlive => true;
-
+ 
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -250,9 +250,9 @@ class _BookingListState extends State<_BookingList>
             if (bTs == null) return -1;
             return (bTs as Timestamp).compareTo(aTs as Timestamp);
           });
-
+ 
         if (docs.isEmpty) return _EmptyTab(label: widget.statusLabel);
-
+ 
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           itemCount: docs.length,
@@ -265,7 +265,6 @@ class _BookingListState extends State<_BookingList>
     );
   }
 }
-
 class _EmptyTab extends StatelessWidget {
   final String label;
   const _EmptyTab({required this.label});
@@ -285,20 +284,20 @@ class _EmptyTab extends StatelessWidget {
     ],
   ));
 }
-
+ 
 // ─────────────────────────── BOOKING CARD ─────────────────────────────
 class _BookingCard extends StatefulWidget {
   final QueryDocumentSnapshot doc;
   const _BookingCard({required super.key, required this.doc});
   @override State<_BookingCard> createState() => _BookingCardState();
 }
-
+ 
 class _BookingCardState extends State<_BookingCard> {
   final _fs    = FirestoreService();
   final _notif = NotificationService();
   bool _expanded = false;
   bool _loading  = false;
-
+ 
   List<_Photo> _parsePhotos(Map<String,dynamic> d) {
     final nf = d['documentFiles'];
     if (nf is List && nf.isNotEmpty) {
@@ -313,7 +312,7 @@ class _BookingCardState extends State<_BookingCard> {
     }
     return [];
   }
-
+ 
   List<_AssignedPetugas> _parsePetugasList(Map<String, dynamic> d) {
     final raw = d['petugasList'];
     if (raw is List && raw.isNotEmpty) {
@@ -327,7 +326,7 @@ class _BookingCardState extends State<_BookingCard> {
     }
     return [];
   }
-
+ 
   List<_AssignedAmbulance> _parseAmbulanceList(Map<String, dynamic> d) {
     final raw = d['ambulanceList'];
     if (raw is List && raw.isNotEmpty) {
@@ -340,7 +339,7 @@ class _BookingCardState extends State<_BookingCard> {
     }
     return [];
   }
-
+ 
   Color _sColor(String s) {
     switch(s) {
       case 'Disetujui': return _green;
@@ -349,7 +348,7 @@ class _BookingCardState extends State<_BookingCard> {
       default:          return _orange;
     }
   }
-
+ 
   Color _sBgColor(String s) {
     switch(s) {
       case 'Disetujui': return _greenLight;
@@ -358,7 +357,7 @@ class _BookingCardState extends State<_BookingCard> {
       default:          return _orangeLight;
     }
   }
-
+ 
   IconData _sIcon(String s) {
     switch(s) {
       case 'Disetujui': return Icons.check_circle_rounded;
@@ -367,7 +366,7 @@ class _BookingCardState extends State<_BookingCard> {
       default:          return Icons.hourglass_top_rounded;
     }
   }
-
+ 
   Future<void> _updateStatus(String ns) async {
     setState(() => _loading = true);
     final d = widget.doc.data() as Map<String,dynamic>;
@@ -381,7 +380,7 @@ class _BookingCardState extends State<_BookingCard> {
     } catch(e) { print('Notif: $e'); }
     if (mounted) setState(() => _loading = false);
   }
-
+ 
   void _openEdit() {
     final d = widget.doc.data() as Map<String,dynamic>;
     final pCtx = context;
@@ -393,7 +392,7 @@ class _BookingCardState extends State<_BookingCard> {
       ),
     );
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final d       = widget.doc.data() as Map<String,dynamic>;
@@ -403,7 +402,7 @@ class _BookingCardState extends State<_BookingCard> {
     final bgColor = _sBgColor(s);
     final ptList  = _parsePetugasList(d);
     final ambList = _parseAmbulanceList(d);
-
+ 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -519,7 +518,7 @@ class _BookingCardState extends State<_BookingCard> {
       ]),
     );
   }
-
+ 
   Widget _iRow(IconData icon, String val, {Color? color}) =>
       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 13, color: color ?? Colors.grey.shade400),
@@ -529,7 +528,7 @@ class _BookingCardState extends State<_BookingCard> {
                 color: color ?? _textMuted),
             maxLines: 2, overflow: TextOverflow.ellipsis)),
       ]);
-
+ 
   Widget _multiChipRow({
     required IconData icon, required String label,
     required Color color, required List<String> items,
@@ -551,7 +550,7 @@ class _BookingCardState extends State<_BookingCard> {
       ])),
     ]);
   }
-
+ 
   Widget _buildActions(String s) {
     if (s == 'Menunggu Konfirmasi') {
       return Padding(
@@ -597,12 +596,12 @@ class _BookingCardState extends State<_BookingCard> {
     return const SizedBox(height: 12);
   }
 }
-
+ 
 // ─────────────── GRID FOTO ────────────────────────────────────────────
 class _PhotoGrid extends StatelessWidget {
   final List<_Photo> photos;
   const _PhotoGrid({required this.photos});
-
+ 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
@@ -616,13 +615,13 @@ class _PhotoGrid extends StatelessWidget {
     );
   }
 }
-
+ 
 class _PhotoTile extends StatelessWidget {
   final _Photo photo;
   final int index;
   final List<_Photo> allPhotos;
   const _PhotoTile({required this.photo, required this.index, required this.allPhotos});
-
+ 
   @override
   Widget build(BuildContext context) {
     final bytes = photo.bytes;
@@ -652,7 +651,7 @@ class _PhotoTile extends StatelessWidget {
     );
   }
 }
-
+ 
 // ─────────────── PHOTO VIEWER ─────────────────────────────────────────
 class _PhotoViewerScreen extends StatefulWidget {
   final List<_Photo> photos;
@@ -660,21 +659,21 @@ class _PhotoViewerScreen extends StatefulWidget {
   const _PhotoViewerScreen({required this.photos, required this.initialIndex});
   @override State<_PhotoViewerScreen> createState() => _PhotoViewerScreenState();
 }
-
+ 
 class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   late PageController _pageCtrl;
   late int _current;
-
+ 
   @override
   void initState() {
     super.initState();
     _current  = widget.initialIndex;
     _pageCtrl = PageController(initialPage: widget.initialIndex);
   }
-
+ 
   @override
   void dispose() { _pageCtrl.dispose(); super.dispose(); }
-
+ 
   Future<void> _download(BuildContext ctx, _Photo photo) async {
     final bytes = photo.bytes;
     if (bytes == null) {
@@ -700,7 +699,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
       }
     }
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -754,7 +753,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     );
   }
 }
-
+ 
 // ══════════════════════════════════════════════════════════════════════
 // EDIT BOOKING SHEET
 // ══════════════════════════════════════════════════════════════════════
@@ -768,30 +767,30 @@ class _EditBookingSheet extends StatefulWidget {
     required this.fs, required this.notif, required this.parentContext});
   @override State<_EditBookingSheet> createState() => _EditBookingSheetState();
 }
-
+ 
 class _EditBookingSheetState extends State<_EditBookingSheet> {
   late String _status;
   late List<_AssignedPetugas> _previousPetugas;
   List<_AssignedPetugas>   _selectedPetugas   = [];
   List<_AssignedAmbulance> _selectedAmbulance = [];
   bool _saving = false;
-
+ 
   // Konflik ambulans: ambulanceId → list info booking yang memakainya
   Map<String, List<AmbulanceConflictInfo>> _conflictDetail = {};
   // Konflik petugas: petugasId → list info booking yang sudah menugaskannya
   Map<String, List<AmbulanceConflictInfo>> _petugasConflictDetail = {};
   bool _loadingConflict = false;
-
+ 
   late final Stream<QuerySnapshot> _petugasStream;
   late final Stream<QuerySnapshot> _ambStream;
-
+ 
   String get _bookingDate => widget.data['date'] as String? ?? '';
-
+ 
   @override
   void initState() {
     super.initState();
     _status = widget.data['status'] ?? 'Menunggu Konfirmasi';
-
+ 
     // Parse petugas terpilih saat ini
     final rawPt = widget.data['petugasList'];
     if (rawPt is List && rawPt.isNotEmpty) {
@@ -807,7 +806,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       }
     }
     _previousPetugas = List.from(_selectedPetugas);
-
+ 
     // Parse armada terpilih saat ini
     final rawAmb = widget.data['ambulanceList'];
     if (rawAmb is List && rawAmb.isNotEmpty) {
@@ -821,16 +820,16 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
         _selectedAmbulance = [_AssignedAmbulance(id: id, plate: plate ?? '', type: '', vehicleName: '')];
       }
     }
-
+ 
     _petugasStream = FirebaseFirestore.instance
         .collection('users').where('role', isEqualTo: 'petugas').snapshots();
     _ambStream = FirebaseFirestore.instance.collection('ambulances').snapshots();
-
+ 
     if (_bookingDate.isNotEmpty) {
       _loadConflictDetail();
     }
   }
-
+ 
   /// Load konflik ambulans DAN petugas secara paralel
   Future<void> _loadConflictDetail() async {
     setState(() => _loadingConflict = true);
@@ -845,15 +844,18 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           excludeBookingId: widget.docId,
         ),
       ]);
-
+ 
       if (mounted) {
         setState(() {
           _conflictDetail        = results[0];
           _petugasConflictDetail = results[1];
-
-          // Catatan: TIDAK auto-lepas armada/petugas yang sudah di-assign
-          // ke booking ini. Admin yang memutuskan apakah ingin melepas atau tidak.
-          // Conflict detail hanya ditampilkan sebagai warning di UI.
+ 
+          // Auto-lepas petugas yang sebelumnya sudah terpilih di booking ini
+          // tetapi ternyata bentrok dengan booking lain (Disetujui /
+          // Menunggu Konfirmasi) pada tanggal yang sama.
+          _selectedPetugas.removeWhere(
+            (p) => _petugasConflictDetail.containsKey(p.id),
+          );
         });
       }
     } catch (e) {
@@ -862,21 +864,21 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       if (mounted) setState(() => _loadingConflict = false);
     }
   }
-
+ 
   int get _totalAmbConflicts     => _conflictDetail.length;
   int get _totalPetugasConflicts => _petugasConflictDetail.length;
-
+ 
   /// Toggle pilih/batal-pilih petugas — blok jika konflik
   void _togglePetugas(QueryDocumentSnapshot doc) {
     final dData  = doc.data() as Map<String, dynamic>;
     final id     = doc.id;
     final name   = dData['name']       as String? ?? '';
     final faskes = dData['faskesName'] as String? ?? '';
-
+ 
     final conflicts   = _petugasConflictDetail[id];
     final hasConflict = conflicts != null && conflicts.isNotEmpty;
     final alreadySel  = _selectedPetugas.any((p) => p.id == id);
-
+ 
     if (hasConflict && !alreadySel) {
       final namaEvent = conflicts!.first.eventName;
       final status    = conflicts.first.status;
@@ -897,7 +899,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       ));
       return;
     }
-
+ 
     setState(() {
       final idx = _selectedPetugas.indexWhere((p) => p.id == id);
       if (idx >= 0) {
@@ -907,7 +909,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       }
     });
   }
-
+ 
   /// Toggle pilih/batal-pilih armada — blok jika konflik
   void _toggleAmbulance(QueryDocumentSnapshot doc) {
     final id      = doc.id;
@@ -917,11 +919,11 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     String rawVName = dData['vehicleName'] as String? ?? '';
     if (rawVName.contains('·')) rawVName = rawVName.split('·').first.trim();
     final vehicleName = (rawVName.isEmpty || rawVName == plate) ? '' : rawVName;
-
+ 
     final conflicts   = _conflictDetail[id];
     final hasConflict = conflicts != null && conflicts.isNotEmpty;
     final alreadySel  = _selectedAmbulance.any((a) => a.id == id);
-
+ 
     if (hasConflict && !alreadySel) {
       final namaEvent = conflicts!.first.eventName;
       final status    = conflicts.first.status;
@@ -942,7 +944,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       ));
       return;
     }
-
+ 
     setState(() {
       final idx = _selectedAmbulance.indexWhere((a) => a.id == id);
       if (idx >= 0) {
@@ -954,21 +956,21 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       }
     });
   }
-
+ 
   Future<void> _save() async {
     setState(() => _saving = true);
-
+ 
     final uid       = widget.data['userId']    as String? ?? '';
     final eventName = widget.data['eventName'] as String? ?? '';
     final eventDate = widget.data['date']      as String? ?? '';
     final eventLoc  = widget.data['location']  as String?
                       ?? widget.data['eventLoc'] as String? ?? '';
-
+ 
     final ptMaps  = _selectedPetugas.map((p)  => p.toMap()).toList();
     final ambMaps = _selectedAmbulance.map((a) => a.toMap()).toList();
     final firstPt  = _selectedPetugas.isNotEmpty  ? _selectedPetugas.first  : null;
     final firstAmb = _selectedAmbulance.isNotEmpty ? _selectedAmbulance.first : null;
-
+ 
     // Kumpulkan ID ambulans SEBELUM diupdate
     final prevAmbulanceIds = <String>[];
     final rawPrevAmb = widget.data['ambulanceList'];
@@ -982,7 +984,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       if (oldId != null && oldId.isNotEmpty) prevAmbulanceIds.add(oldId);
     }
     final newAmbulanceIds = _selectedAmbulance.map((a) => a.id).toList();
-
+ 
     // Kumpulkan ID petugas SEBELUM diupdate
     final prevPetugasIds = <String>[];
     final rawPrevPt = widget.data['petugasList'];
@@ -996,7 +998,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       if (oldId != null && oldId.isNotEmpty) prevPetugasIds.add(oldId);
     }
     final newPetugasIds = _selectedPetugas.map((p) => p.id).toList();
-
+ 
     // Update booking di Firestore
     await FirebaseFirestore.instance
         .collection('bookings')
@@ -1011,7 +1013,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       'ambulanceId':    firstAmb?.id,
       'ambulancePlate': firstAmb?.plate,
     });
-
+ 
     // Recalculate ketersediaan ambulans yang terdampak
     try {
       await widget.fs.recalculateAllAffectedAmbulances(
@@ -1020,9 +1022,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       );
     } catch (e) {
       print('Recalculate ambulance error: $e');
-    }
 
-    // Recalculate ketersediaan petugas yang terdampak
+    }
+// Recalculate ketersediaan petugas yang terdampak
     try {
       await widget.fs.recalculateAllAffectedPetugas(
         prevPetugasIds: prevPetugasIds,
@@ -1031,7 +1033,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     } catch (e) {
       print('Recalculate petugas error: $e');
     }
-
+ 
     // Notifikasi ke user
     try {
       await widget.notif.notifyBookingStatus(
@@ -1044,7 +1046,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ? _selectedAmbulance.map((a) => a.plate).join(', ') : null,
       );
     } catch(e) { print('Notif user: $e'); }
-
+ 
     // Notifikasi ke petugas (yang baru di-assign / dilepas)
     try {
       final prevIds    = _previousPetugas.map((p) => p.id).toSet();
@@ -1053,7 +1055,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           .where((p) => !prevIds.contains(p.id)).map((p) => p.id).toList();
       final removed = _previousPetugas
           .where((p) => !currentIds.contains(p.id)).map((p) => p.id).toList();
-
+ 
       if (newlyAssigned.isNotEmpty || removed.isNotEmpty) {
         await widget.notif.notifyPetugasAssigned(
           petugasIds:        newlyAssigned,
@@ -1065,7 +1067,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
         );
       }
     } catch(e) { print('Notif petugas: $e'); }
-
+ 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1077,7 +1079,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       ));
     }
   }
-
+ 
   Future<void> _delete() async {
     final pCtx = widget.parentContext;
     Navigator.pop(context);
@@ -1089,7 +1091,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       await widget.fs.deleteBooking(widget.docId);
     }
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.of(context).padding.bottom;
@@ -1102,7 +1104,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       'Menunggu Konfirmasi': _orangeLight,
       'Disetujui': _greenLight, 'Ditolak': _redLight, 'Selesai': _blueLight,
     };
-
+ 
     return Container(
       margin: const EdgeInsets.fromLTRB(12,0,12,12),
       padding: EdgeInsets.fromLTRB(20,20,20,20+pad),
@@ -1114,7 +1116,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           Center(child: Container(width: 40, height: 4,
               decoration: BoxDecoration(color: _border, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 18),
-
+ 
           // ── Header ──────────────────────────────────────────────────
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1126,7 +1128,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ])),
             _iconBtn(Icons.delete_outline_rounded, _red, _delete),
           ]),
-
+ 
           // ── Info tanggal + badge konflik gabungan ────────────────────
           if (_bookingDate.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -1159,7 +1161,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ),
           ],
           const SizedBox(height: 22),
-
+ 
           // ── Status Booking ───────────────────────────────────────────
           _sectionTitle('Status Booking'),
           const SizedBox(height: 10),
@@ -1180,7 +1182,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             );
           }).toList()),
           const SizedBox(height: 24),
-
+ 
           // ══════════════════════════════════════════════════════════════
           // ASSIGN PETUGAS
           // ══════════════════════════════════════════════════════════════
@@ -1199,7 +1201,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           Text('Tap untuk memilih / batal pilih',
               style: TextStyle(fontSize: 11, color: _textMuted)),
           const SizedBox(height: 8),
-
+ 
           // Banner petugas terkunci
           if (_totalPetugasConflicts > 0) ...[
             Container(
@@ -1223,7 +1225,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ),
             const SizedBox(height: 8),
           ],
-
+ 
           // Chip petugas yang sudah dipilih
           if (_selectedPetugas.isNotEmpty) ...[
             Wrap(spacing: 6, runSpacing: 6,
@@ -1235,7 +1237,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ),
             const SizedBox(height: 10),
           ],
-
+ 
           // List petugas
           StreamBuilder<QuerySnapshot>(
             stream: _petugasStream,
@@ -1254,18 +1256,18 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   final fsk = dd['faskesName'] as String? ?? '';
                   final sel = _selectedPetugas.any((p) => p.id == doc.id);
                   final isLast = i == list.length - 1;
-
+ 
                   // Cek konflik petugas
                   final ptConflicts   = _petugasConflictDetail[doc.id];
                   final hasPtConflict = ptConflicts != null && ptConflicts.isNotEmpty;
-
+ 
                   if (hasPtConflict) {
                     return _buildDisabledPetugasItem(
                       name: n, faskes: fsk,
                       conflicts: ptConflicts!, isLast: isLast,
                     );
                   }
-
+ 
                   return Column(children: [
                     InkWell(
                       onTap: () => _togglePetugas(doc),
@@ -1302,7 +1304,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             },
           ),
           const SizedBox(height: 22),
-
+ 
           // ══════════════════════════════════════════════════════════════
           // ASSIGN ARMADA
           // ══════════════════════════════════════════════════════════════
@@ -1318,7 +1320,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               ),
           ]),
           const SizedBox(height: 4),
-
+ 
           // Banner armada terkunci
           if (_totalAmbConflicts > 0) ...[
             Container(
@@ -1342,11 +1344,11 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ),
             const SizedBox(height: 8),
           ],
-
+ 
           Text('Tap kartu untuk memilih / batal pilih',
               style: TextStyle(fontSize: 11, color: _textMuted)),
           const SizedBox(height: 10),
-
+ 
           // Chip armada yang sudah dipilih
           if (_selectedAmbulance.isNotEmpty) ...[
             Wrap(spacing: 6, runSpacing: 6,
@@ -1359,7 +1361,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             ),
             const SizedBox(height: 10),
           ],
-
+ 
           // List armada
           StreamBuilder<QuerySnapshot>(
             stream: _ambStream,
@@ -1374,26 +1376,26 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   final avail = dd['available']   as bool?   ?? true;
                   final pName = dd['petugasName'] as String?;
                   final sel   = _selectedAmbulance.any((a) => a.id == doc.id);
-
+ 
                   final conflicts   = _conflictDetail[doc.id];
                   final hasConflict = conflicts != null && conflicts.isNotEmpty;
-
+ 
                   String rawVName = dd['vehicleName'] as String? ?? '';
                   if (rawVName.contains('·')) rawVName = rawVName.split('·').first.trim();
                   final vName = (rawVName.isEmpty || rawVName == plate) ? '' : rawVName;
-
+ 
                   Color typeColor = _blue;
                   IconData typeIcon = Icons.local_hospital_rounded;
                   if (type.contains('Gawat Darurat')) { typeColor = _red; typeIcon = Icons.emergency_rounded; }
                   else if (type.contains('Transport')) { typeColor = _blue; typeIcon = Icons.airport_shuttle_rounded; }
-
+ 
                   if (hasConflict) {
                     return _buildDisabledAmbCard(
                       plate: plate, type: type, typeIcon: typeIcon,
                       vName: vName, pName: pName, conflicts: conflicts!,
                     );
                   }
-
+ 
                   return GestureDetector(
                     onTap: () => _toggleAmbulance(doc),
                     child: AnimatedContainer(
@@ -1482,7 +1484,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               );
             },
           ),
-
+ 
           const SizedBox(height: 28),
           SizedBox(width: double.infinity,
             child: ElevatedButton(
@@ -1501,7 +1503,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       )),
     );
   }
-
+ 
   // ── Disabled item petugas (sudah bertugas di booking lain) ────────
   Widget _buildDisabledPetugasItem({
     required String name,
@@ -1511,33 +1513,28 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
   }) {
     final firstConflict = conflicts.first;
     final moreCount     = conflicts.length - 1;
-
+ 
     return Column(children: [
       Container(
         color: const Color(0xFFF9F9F9),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         child: Row(children: [
-          // Gembok sebagai pengganti checkbox
+          // Checkbox abu-abu (non-interaktif, tanpa ikon gembok)
           Container(
             width: 20, height: 20,
             decoration: BoxDecoration(
               color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.lock_rounded, size: 12, color: Colors.grey.shade400),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Icon(Icons.lock_rounded, size: 11, color: Colors.grey),
-              const SizedBox(width: 4),
-              Expanded(child: Text(name, style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.grey.shade500,
-                  decoration: TextDecoration.lineThrough,
-                  decorationColor: Colors.grey.shade400))),
-            ]),
+            Text(name, style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey.shade500,
+                decoration: TextDecoration.lineThrough,
+                decorationColor: Colors.grey.shade400)),
             if (faskes.isNotEmpty)
               Text(faskes, style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
             const SizedBox(height: 4),
@@ -1579,7 +1576,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       if (!isLast) Divider(height: 1, indent: 46, color: _border),
     ]);
   }
-
+ 
   // ── Disabled card armada (sudah dipakai di booking lain) ──────────
   Widget _buildDisabledAmbCard({
     required String plate,
@@ -1591,7 +1588,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
   }) {
     final firstConflict = conflicts.first;
     final moreCount     = conflicts.length - 1;
-
+ 
     return Container(
       margin: const EdgeInsets.only(bottom: 9),
       decoration: BoxDecoration(
@@ -1688,7 +1685,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       ),
     );
   }
-
+ 
   Widget _emptyHint(String msg) => Container(
     padding: const EdgeInsets.all(13),
     decoration: BoxDecoration(color: _bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: _border)),
@@ -1699,14 +1696,14 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     ]),
   );
 }
-
+ 
 // ── Chip terpilih ──────────────────────────────────────────────────────
 class _SelectedChip extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onRemove;
   const _SelectedChip({required this.label, required this.color, required this.onRemove});
-
+ 
   @override
   Widget build(BuildContext context) {
     final bgColor = color == _green ? _greenLight : color == _blue ? _blueLight : _redLight;
@@ -1732,11 +1729,11 @@ class _SelectedChip extends StatelessWidget {
     );
   }
 }
-
+ 
 // ─────────────── HELPERS ──────────────────────────────────────────────
 Widget _sectionTitle(String t) =>
     Text(t, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: _textPrimary));
-
+ 
 Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) {
   final bgColor = color == _green ? _greenLight : color == _blue ? _blueLight : _redLight;
   return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(8),
@@ -1744,7 +1741,7 @@ Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) {
       decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(8)),
       child: Icon(icon, size: 17, color: color)));
 }
-
+ 
 Future<bool?> _confirmDialog(BuildContext ctx, String title, String msg) =>
     showDialog<bool>(
       context: ctx, barrierDismissible: true,
@@ -1763,29 +1760,29 @@ Future<bool?> _confirmDialog(BuildContext ctx, String title, String msg) =>
         ],
       ),
     );
-
+ 
 // ═══════════════════════════ REKAP BULANAN TAB ════════════════════════
 class _RekapBulananTab extends StatefulWidget {
   const _RekapBulananTab({super.key});
   @override State<_RekapBulananTab> createState() => _RekapBulananTabState();
 }
-
+ 
 class _RekapBulananTabState extends State<_RekapBulananTab>
     with AutomaticKeepAliveClientMixin {
   @override bool get wantKeepAlive => true;
-
+ 
   late int _selectedYear;
   late int _selectedMonth;
   int _subTab = 0;
-
+ 
   final Stream<QuerySnapshot> _allBookingsStream =
       FirebaseFirestore.instance.collection('bookings').snapshots();
-
+ 
   static const _months = [
     'Januari','Februari','Maret','April','Mei','Juni',
     'Juli','Agustus','September','Oktober','November','Desember',
   ];
-
+ 
   @override
   void initState() {
     super.initState();
@@ -1793,7 +1790,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
     _selectedYear  = now.year;
     _selectedMonth = now.month;
   }
-
+ 
   List<QueryDocumentSnapshot> _filterDocs(List<QueryDocumentSnapshot> all) {
     return all.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
@@ -1803,32 +1800,32 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       return dt.year == _selectedYear && dt.month == _selectedMonth;
     }).toList();
   }
-
+ 
   Map<String, dynamic> _buildStats(List<QueryDocumentSnapshot> docs) {
     int total = docs.length;
     int menunggu = 0, disetujui = 0, ditolak = 0, selesai = 0;
     final Map<String, Map<String, dynamic>> perLokasi = {};
     final Map<String, int> perPetugas = {};
     final Map<String, int> perTipe    = {};
-
+ 
     final faskesList = _getFaskesList();
     final Map<String, Map<String, dynamic>> perFaskes = {};
     for (final f in faskesList) {
       perFaskes[f['name']!] = {'total': 0, 'selesai': 0, 'ditolak': 0, 'petugas': <String>{}};
     }
     perFaskes['Tidak Ditentukan'] = {'total': 0, 'selesai': 0, 'ditolak': 0, 'petugas': <String>{}};
-
+ 
     for (final doc in docs) {
       final d      = doc.data() as Map<String, dynamic>;
       final status = d['status'] as String? ?? '-';
       final lokasi = (d['location'] ?? d['eventLoc'] ?? 'Tidak diketahui') as String;
       final tipe   = (d['type'] ?? 'Lainnya') as String;
-
+ 
       if (status == 'Menunggu Konfirmasi') menunggu++;
       else if (status == 'Disetujui') disetujui++;
       else if (status == 'Ditolak')   ditolak++;
       else if (status == 'Selesai')   selesai++;
-
+ 
       final lokasiKey = lokasi.split(',').first.trim();
       if (!perLokasi.containsKey(lokasiKey)) {
         perLokasi[lokasiKey] = {'total': 0, 'selesai': 0, 'petugas': <String>{}};
@@ -1838,7 +1835,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
         perLokasi[lokasiKey]!['selesai'] = (perLokasi[lokasiKey]!['selesai'] as int) + 1;
       }
       perTipe[tipe] = (perTipe[tipe] ?? 0) + 1;
-
+ 
       List<_AssignedPetugas> ptList = [];
       final rawPt = d['petugasList'];
       if (rawPt is List && rawPt.isNotEmpty) {
@@ -1851,7 +1848,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
           ptList = [_AssignedPetugas(id: id, name: name, faskes: fsk ?? '')];
         }
       }
-
+ 
       for (final pt in ptList) {
         if (status == 'Selesai') perPetugas[pt.name] = (perPetugas[pt.name] ?? 0) + 1;
         (perLokasi[lokasiKey]!['petugas'] as Set<String>).add(pt.name);
@@ -1864,7 +1861,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
         }
       }
     }
-
+ 
     final sortedLokasi = perLokasi.entries.toList()
       ..sort((a, b) => (b.value['total'] as int).compareTo(a.value['total'] as int));
     final sortedPetugas = perPetugas.entries.toList()
@@ -1875,7 +1872,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
         if (diff != 0) return diff;
         return a.key.compareTo(b.key);
       });
-
+ 
     return {
       'total': total, 'menunggu': menunggu, 'disetujui': disetujui,
       'ditolak': ditolak, 'selesai': selesai,
@@ -1885,7 +1882,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       'perFaskes':  sortedFaskes,
     };
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1897,7 +1894,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
         }
         final filtered = _filterDocs(snap.data?.docs ?? []);
         final stats    = _buildStats(filtered);
-
+ 
         return Column(children: [
           Container(
             color: Colors.white,
@@ -1962,7 +1959,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       },
     );
   }
-
+ 
   Widget _subTabBtn(int idx, IconData icon, String label) {
     final sel = _subTab == idx;
     return Expanded(child: GestureDetector(
@@ -1979,7 +1976,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ),
     ));
   }
-
+ 
   Widget _buildUmum(Map<String, dynamic> stats) {
     if (stats['total'] == 0) return _emptyRekap();
     return ListView(
@@ -2033,13 +2030,13 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ],
     );
   }
-
+ 
   Widget _buildPerFaskes(Map<String, dynamic> stats) {
     final faskesList    = stats['perFaskes'] as List<MapEntry<String, Map<String, dynamic>>>;
     final totalKegiatan = stats['total'] as int;
     final aktif  = faskesList.where((e) => (e.value['total'] as int) > 0).toList();
     final kosong = faskesList.where((e) => (e.value['total'] as int) == 0).toList();
-
+ 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
       children: [
@@ -2164,7 +2161,6 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ],
     );
   }
-
   Widget _emptyRekap() => Center(child: Padding(padding: const EdgeInsets.all(32),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       Container(padding: const EdgeInsets.all(24),
@@ -2176,7 +2172,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
           style: const TextStyle(color: _textMuted, fontSize: 14, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
     ]),
   ));
-
+ 
   Widget _tipeCard(Map<String, dynamic> stats) => Container(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(13), border: Border.all(color: _border)),
     child: Column(children: (stats['perTipe'] as Map<String, int>).entries.toList().asMap().entries.map((entry) {
@@ -2200,7 +2196,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ]);
     }).toList()),
   );
-
+ 
   Widget _petugasCard(Map<String, dynamic> stats) => Container(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(13), border: Border.all(color: _border)),
     child: Column(children: (stats['perPetugas'] as List<MapEntry<String, int>>).asMap().entries.map((entry) {
@@ -2224,7 +2220,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ]);
     }).toList()),
   );
-
+ 
   Widget _lokasiCard(Map<String, dynamic> stats) => Container(
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(13), border: Border.all(color: _border)),
     child: Column(children: (stats['perLokasi'] as List<MapEntry<String, Map<String, dynamic>>>).asMap().entries.map((entry) {
@@ -2260,7 +2256,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ]);
     }).toList()),
   );
-
+ 
   Widget _statCard(String label, int count, Color color, IconData icon) {
     final bgColor = color == _green ? _greenLight : color == _blue ? _blueLight
         : color == _orange ? _orangeLight : color == _red ? _redLight : _bg;
@@ -2275,7 +2271,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ]),
     ));
   }
-
+ 
   Widget _sectionHeader(IconData icon, String title, Color color) {
     final bgColor = color == _green ? _greenLight : color == _blue ? _blueLight
         : color == _orange ? _orangeLight : color == _red ? _redLight : _bg;
@@ -2285,7 +2281,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       Expanded(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color))),
     ]);
   }
-
+ 
   Widget _miniChip(String label, Color color) {
     final bgColor = color == _green ? _greenLight : color == _blue ? _blueLight
         : color == _orange ? _orangeLight : _redLight;
@@ -2296,26 +2292,26 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
     );
   }
 }
-
+ 
 // ═══════════════════════════ ADMIN USER SCREEN ════════════════════════
 class AdminUserScreen extends StatefulWidget {
   final VoidCallback onBack;
   const AdminUserScreen({super.key, required this.onBack});
   @override State<AdminUserScreen> createState() => _AdminUserScreenState();
 }
-
+ 
 class _AdminUserScreenState extends State<AdminUserScreen> {
   final _fs = FirestoreService();
   late final Stream<List<Map<String,dynamic>>> _stream;
-
+ 
   @override
   void initState() { super.initState(); _stream = _fs.getUsers(); }
-
+ 
   void _showCreateSheet() {
     showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => _CreateUserSheet(parentContext: context));
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -2369,14 +2365,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     );
   }
 }
-
+ 
 // ─────────────── CREATE USER SHEET ────────────────────────────────────
 class _CreateUserSheet extends StatefulWidget {
   final BuildContext parentContext;
   const _CreateUserSheet({required this.parentContext});
   @override State<_CreateUserSheet> createState() => _CreateUserSheetState();
 }
-
+ 
 class _CreateUserSheetState extends State<_CreateUserSheet> {
   final _auth     = AuthService();
   final _nameCtrl = TextEditingController();
@@ -2387,7 +2383,7 @@ class _CreateUserSheetState extends State<_CreateUserSheet> {
   bool    _saving  = false, _obscure = true;
   String? _errorMsg;
   final _faskesList = _getFaskesList();
-
+ 
   static const _roles      = ['user', 'petugas', 'admin'];
   static const _roleColors = {'user': _blue, 'petugas': _orange, 'admin': _red};
   static const _roleIcons  = {
@@ -2395,9 +2391,9 @@ class _CreateUserSheetState extends State<_CreateUserSheet> {
     'petugas': Icons.medical_services_rounded,
     'admin': Icons.shield_rounded
   };
-
+ 
   @override void dispose() { _nameCtrl.dispose(); _emailCtrl.dispose(); _passCtrl.dispose(); super.dispose(); }
-
+ 
   Future<void> _save() async {
     setState(() => _errorMsg = null);
     final name = _nameCtrl.text.trim(), email = _emailCtrl.text.trim(), pass = _passCtrl.text;
@@ -2423,7 +2419,7 @@ class _CreateUserSheetState extends State<_CreateUserSheet> {
       setState(() => _errorMsg = result.errorMessage);
     }
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.of(context).padding.bottom;
@@ -2520,16 +2516,16 @@ class _CreateUserSheetState extends State<_CreateUserSheet> {
     );
   }
 }
-
+ 
 class _UserCard extends StatelessWidget {
   final Map<String,dynamic> user;
   final FirestoreService fs;
   const _UserCard({required super.key, required this.user, required this.fs});
-
+ 
   Color _rc(String r) { switch(r) { case 'admin': return _red; case 'petugas': return _orange; default: return _blue; } }
   Color _rbg(String r) { switch(r) { case 'admin': return _redLight; case 'petugas': return _orangeLight; default: return _blueLight; } }
   IconData _ri(String r) { switch(r) { case 'admin': return Icons.shield_rounded; case 'petugas': return Icons.medical_services_rounded; default: return Icons.person_rounded; } }
-
+ 
   @override
   Widget build(BuildContext context) {
     final role  = user['role'] as String? ?? 'user';
@@ -2570,7 +2566,7 @@ class _UserCard extends StatelessWidget {
     );
   }
 }
-
+ 
 // ─────────────── EDIT USER SHEET ──────────────────────────────────────
 class _EditUserSheet extends StatefulWidget {
   final Map<String,dynamic> user;
@@ -2579,13 +2575,13 @@ class _EditUserSheet extends StatefulWidget {
   const _EditUserSheet({required this.user, required this.fs, required this.parentContext});
   @override State<_EditUserSheet> createState() => _EditUserSheetState();
 }
-
+ 
 class _EditUserSheetState extends State<_EditUserSheet> {
   late String _role;
   String? _faskesId, _faskesName;
   bool _saving = false;
   final _faskesList = _getFaskesList();
-
+ 
   @override
   void initState() {
     super.initState();
@@ -2593,7 +2589,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
     _faskesId = widget.user['faskesId'];
     _faskesName = widget.user['faskesName'];
   }
-
+ 
   Future<void> _save() async {
     if (_role == 'petugas' && _faskesId == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -2618,7 +2614,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       ));
     }
   }
-
+ 
   Future<void> _delete() async {
     final pCtx = widget.parentContext;
     Navigator.pop(context);
@@ -2627,7 +2623,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
     final ok = await _confirmDialog(pCtx, 'Hapus User?', 'User "${widget.user['name']}" akan dihapus permanen.');
     if (ok == true) await widget.fs.deleteUser(widget.user['id']);
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.of(context).padding.bottom;
@@ -2692,27 +2688,27 @@ class _EditUserSheetState extends State<_EditUserSheet> {
     );
   }
 }
-
+ 
 // ═══════════════════════════ ADMIN AMBULANCE SCREEN ═══════════════════════════
 class AdminAmbulanceScreen extends StatefulWidget {
   final VoidCallback onBack;
   const AdminAmbulanceScreen({super.key, required this.onBack});
   @override State<AdminAmbulanceScreen> createState() => _AdminAmbState();
 }
-
+ 
 class _AdminAmbState extends State<AdminAmbulanceScreen> {
   final _fs = FirestoreService();
   late final Stream<List<Map<String,dynamic>>> _stream;
-
+ 
   @override
   void initState() { super.initState(); _stream = _fs.getAmbulances(); }
-
+ 
   void _showSheet({Map<String,dynamic>? existing}) {
     final pCtx = context;
     showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => _AmbSheet(existing: existing, fs: _fs, parentContext: pCtx));
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -2759,7 +2755,7 @@ class _AdminAmbState extends State<AdminAmbulanceScreen> {
     );
   }
 }
-
+ 
 // ═══════════════════════════ AMB SHEET ════════════════════════════════
 class _AmbSheet extends StatefulWidget {
   final Map<String,dynamic>? existing;
@@ -2768,7 +2764,7 @@ class _AmbSheet extends StatefulWidget {
   const _AmbSheet({this.existing, required this.fs, required this.parentContext});
   @override State<_AmbSheet> createState() => _AmbSheetState();
 }
-
+ 
 class _AmbSheetState extends State<_AmbSheet> {
   late final TextEditingController _plateCtrl;
   String? _selectedVehicleType;
@@ -2777,26 +2773,26 @@ class _AmbSheetState extends State<_AmbSheet> {
   bool _saving = false;
   late final Stream<QuerySnapshot> _petugasStream;
   bool get _isEdit => widget.existing != null;
-
+ 
   String get _selectedVehicleName {
     if (_selectedVehicleIndex == null) return '';
     return _vehicleNames[_selectedVehicleIndex!]['label'] as String;
   }
-
+ 
   String get _selectedVehicleKey {
     if (_selectedVehicleIndex == null) return '';
     return _vehicleNames[_selectedVehicleIndex!]['key'] as String;
   }
-
+ 
   @override
   void initState() {
     super.initState();
     _plateCtrl = TextEditingController(text: widget.existing?['plate'] ?? '');
     _selectedVehicleType = widget.existing?['type'] as String?;
-
+ 
     final savedKey  = widget.existing?['vehicleKey']  as String?;
     final savedName = widget.existing?['vehicleName'] as String?;
-
+ 
     if (savedKey != null && savedKey.isNotEmpty) {
       final idx = _vehicleNames.indexWhere((v) => (v['key'] as String) == savedKey);
       _selectedVehicleIndex = idx >= 0 ? idx : null;
@@ -2807,15 +2803,15 @@ class _AmbSheetState extends State<_AmbSheet> {
     } else {
       _selectedVehicleIndex = null;
     }
-
+ 
     _petugasId   = widget.existing?['petugasId'];
     _petugasName = widget.existing?['petugasName'];
     _petugasStream = FirebaseFirestore.instance
         .collection('users').where('role', isEqualTo: 'petugas').snapshots();
   }
-
+ 
   @override void dispose() { _plateCtrl.dispose(); super.dispose(); }
-
+ 
   Future<void> _save() async {
     if (_plateCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -2828,7 +2824,7 @@ class _AmbSheetState extends State<_AmbSheet> {
       return;
     }
     setState(() => _saving = true);
-
+ 
     if (_isEdit) {
       final data = {
         'plate':       _plateCtrl.text.trim(),
@@ -2857,10 +2853,10 @@ class _AmbSheetState extends State<_AmbSheet> {
       };
       await widget.fs.addAmbulance(data);
     }
-
+ 
     if (mounted) Navigator.pop(context);
   }
-
+ 
   Future<void> _delete() async {
     final pCtx = widget.parentContext;
     Navigator.pop(context);
@@ -2869,7 +2865,7 @@ class _AmbSheetState extends State<_AmbSheet> {
     final ok = await _confirmDialog(pCtx, 'Hapus Armada?', 'Armada "${widget.existing!['plate']}" akan dihapus permanen.');
     if (ok == true) await widget.fs.deleteAmbulance(widget.existing!['id']);
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.of(context).padding.bottom;
@@ -2892,7 +2888,7 @@ class _AmbSheetState extends State<_AmbSheet> {
             ])),
             if (_isEdit) _iconBtn(Icons.delete_outline_rounded, _red, _delete),
           ]),
-
+ 
           if (_isEdit) ...[
             const SizedBox(height: 12),
             Builder(builder: (ctx) {
@@ -2919,11 +2915,11 @@ class _AmbSheetState extends State<_AmbSheet> {
             }),
           ],
           const SizedBox(height: 20),
-
+ 
           _sectionTitle('Nomor Plat *'), const SizedBox(height: 8),
           _TF(ctrl: _plateCtrl, label: 'Contoh: AG 1234 XX', icon: Icons.directions_car_rounded),
           const SizedBox(height: 17),
-
+ 
           Row(children: [
             _sectionTitle('Tipe Kendaraan'),
             const Spacer(),
@@ -2967,7 +2963,7 @@ class _AmbSheetState extends State<_AmbSheet> {
               child: Row(children: [const Icon(Icons.check_circle_rounded, size: 13, color: _green), const SizedBox(width: 7), Expanded(child: Text(_selectedVehicleType!, style: const TextStyle(fontSize: 12, color: _green, fontWeight: FontWeight.w600)))])),
           ],
           const SizedBox(height: 17),
-
+ 
           Row(children: [
             _sectionTitle('Nama Kendaraan'),
             const Spacer(),
@@ -3071,27 +3067,27 @@ class _AmbSheetState extends State<_AmbSheet> {
     );
   }
 }
-
+ 
 // ═══════════════════════════ AMB CARD ═════════════════════════════════
 class _AmbCard extends StatelessWidget {
   final Map<String,dynamic> amb;
   final FirestoreService fs;
   final VoidCallback onEdit;
   const _AmbCard({required super.key, required this.amb, required this.fs, required this.onEdit});
-
+ 
   IconData _vehicleIcon(String? type) {
     if (type == null || type.isEmpty) return Icons.local_hospital_rounded;
     if (type.contains('Gawat Darurat')) return Icons.emergency_rounded;
     if (type.contains('Transport'))    return Icons.airport_shuttle_rounded;
     return Icons.local_hospital_rounded;
   }
-
+ 
   Color _vehicleColor(String? type) {
     if (type == null || type.isEmpty) return _blue;
     final match = _vehicleTypes.firstWhere((vt) => (vt['label'] as String) == type, orElse: () => {'color': _blue});
     return match['color'] as Color;
   }
-
+ 
   @override
   Widget build(BuildContext context) {
     final available   = amb['available']   as bool?   ?? true;
@@ -3103,7 +3099,7 @@ class _AmbCard extends StatelessWidget {
     final availBg     = available ? _greenLight : _redLight;
     final typeColor   = _vehicleColor(type.isNotEmpty ? type : null);
     final typeBg      = typeColor == _red ? _redLight : _blueLight;
-
+ 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
@@ -3171,14 +3167,14 @@ class _AmbCard extends StatelessWidget {
     );
   }
 }
-
+ 
 // ─────────────── REUSABLE TEXT FIELD ──────────────────────────────────
 class _TF extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
   final IconData icon;
   const _TF({required this.ctrl, required this.label, required this.icon});
-
+ 
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(color: _bg, borderRadius: BorderRadius.circular(11), border: Border.all(color: _border)),
