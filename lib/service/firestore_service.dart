@@ -5,14 +5,17 @@
 //   [FIX 3] updateBookingStatus → recalculate semua ambulans terdampak
 //   [FIX 4] addBooking → pastikan field lengkap & konsisten
 //   [FIX 5] getAmbulanceConflictDetail → return info event konflik (untuk UI warning)
+//   [FIX 6] recalculatePetugasAvailability → tulis ke collection 'users' (bukan 'petugas')
+//   [FIX 7] updateBookingStatus → recalculate petugas terdampak juga
+//   [FIX 8] deleteBooking → recalculate petugas terdampak juga
 // ignore_for_file: avoid_print
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ── Status yang dianggap "aktif" (ambulans tidak boleh double-assign) ──
+// ── Status yang dianggap "aktif" (ambulans/petugas tidak boleh double-assign) ──
 const _activeStatuses = ['Disetujui', 'Menunggu Konfirmasi'];
 
-// ── Status yang dianggap "selesai" (ambulans bebas kembali) ────────────
+// ── Status yang dianggap "selesai" (ambulans/petugas bebas kembali) ────────────
 const _doneStatuses = ['Selesai', 'Ditolak', 'Dibatalkan'];
 
 class FirestoreService {
@@ -70,7 +73,7 @@ class FirestoreService {
     try {
       await _firestore.collection('ambulances').add({
         ...data,
-        'available': true, // armada baru selalu tersedia
+        'available': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
       return true;
@@ -104,14 +107,6 @@ class FirestoreService {
   // AMBULANCE AVAILABILITY
   // ══════════════════════════════════════════════════════════════════
 
-  /// [FIX 1] Cek apakah ambulans konflik pada tanggal tertentu.
-  ///
-  /// Sebelumnya hanya cek status "Disetujui".
-  /// Sekarang cek KEDUA status aktif: "Disetujui" & "Menunggu Konfirmasi"
-  /// agar admin tidak bisa assign ambulans yang sama ke 2 booking sekaligus
-  /// meskipun keduanya masih menunggu konfirmasi.
-  ///
-  /// Returns true jika ada konflik.
   Future<bool> isAmbulanceConflict({
     required String ambulanceId,
     required String date,
@@ -127,14 +122,9 @@ class FirestoreService {
 
         for (final doc in snap.docs) {
           if (excludeBookingId != null && doc.id == excludeBookingId) continue;
-
           final data = doc.data();
-
-          // Cek format lama (single ambulanceId)
           final oldId = data['ambulanceId'] as String?;
           if (oldId != null && oldId == ambulanceId) return true;
-
-          // Cek format baru (ambulanceList multi-assign)
           final list = data['ambulanceList'];
           if (list is List) {
             for (final item in list) {
@@ -150,17 +140,11 @@ class FirestoreService {
     }
   }
 
-  /// [FIX 5] Ambil detail semua konflik ambulans pada tanggal tertentu.
-  ///
-  /// Return: Map<ambulanceId, List<ConflictInfo>>
-  /// Berguna untuk UI warning di EditBookingSheet agar admin tahu
-  /// ambulans mana yang sudah dipakai booking mana.
   Future<Map<String, List<AmbulanceConflictInfo>>> getAmbulanceConflictDetail({
     required String date,
     String? excludeBookingId,
   }) async {
     final result = <String, List<AmbulanceConflictInfo>>{};
-
     try {
       for (final status in _activeStatuses) {
         final snap = await _firestore
@@ -171,23 +155,17 @@ class FirestoreService {
 
         for (final doc in snap.docs) {
           if (excludeBookingId != null && doc.id == excludeBookingId) continue;
-
-          final data    = doc.data();
-          final docId   = doc.id;
+          final data = doc.data();
           final evtName = data['eventName'] as String? ?? 'Event lain';
-          final info    = AmbulanceConflictInfo(
-            bookingId:  docId,
-            eventName:  evtName,
-            status:     status,
+          final info = AmbulanceConflictInfo(
+            bookingId: doc.id,
+            eventName: evtName,
+            status: status,
           );
-
-          // Cek format lama
           final oldId = data['ambulanceId'] as String?;
           if (oldId != null && oldId.isNotEmpty) {
             result.putIfAbsent(oldId, () => []).add(info);
           }
-
-          // Cek format baru
           final list = data['ambulanceList'];
           if (list is List) {
             for (final item in list) {
@@ -204,22 +182,14 @@ class FirestoreService {
     } catch (e) {
       print('[FS] getAmbulanceConflictDetail error: $e');
     }
-
     return result;
   }
 
-  /// [NEW] Ambil detail semua konflik PETUGAS pada tanggal tertentu.
-  ///
-  /// Return: Map<petugasId, List<AmbulanceConflictInfo>>
-  /// Sama seperti getAmbulanceConflictDetail tetapi untuk petugas:
-  /// petugas dianggap konflik jika ia sudah di-assign ke booking lain
-  /// (status Disetujui ATAU Menunggu Konfirmasi) pada tanggal yang sama.
   Future<Map<String, List<AmbulanceConflictInfo>>> getPetugasConflictDetail({
     required String date,
     String? excludeBookingId,
   }) async {
     final result = <String, List<AmbulanceConflictInfo>>{};
-
     try {
       for (final status in _activeStatuses) {
         final snap = await _firestore
@@ -230,22 +200,17 @@ class FirestoreService {
 
         for (final doc in snap.docs) {
           if (excludeBookingId != null && doc.id == excludeBookingId) continue;
-
-          final data    = doc.data();
+          final data = doc.data();
           final evtName = data['eventName'] as String? ?? 'Event lain';
-          final info    = AmbulanceConflictInfo(
+          final info = AmbulanceConflictInfo(
             bookingId: doc.id,
             eventName: evtName,
-            status:    status,
+            status: status,
           );
-
-          // Format lama (single petugasId)
           final oldId = data['petugasId'] as String?;
           if (oldId != null && oldId.isNotEmpty) {
             result.putIfAbsent(oldId, () => []).add(info);
           }
-
-          // Format baru (petugasList multi-assign)
           final list = data['petugasList'];
           if (list is List) {
             for (final item in list) {
@@ -262,41 +227,30 @@ class FirestoreService {
     } catch (e) {
       print('[FS] getPetugasConflictDetail error: $e');
     }
-
     return result;
   }
 
-  /// [FIX 2] Recalculate ketersediaan ambulans berdasarkan SEMUA booking
-  /// aktif yang ada (bukan hanya "Disetujui").
-  ///
-  /// Ambulans dianggap TIDAK TERSEDIA jika ia ada dalam setidaknya satu
-  /// booking yang berstatus "Disetujui" ATAU "Menunggu Konfirmasi".
-  /// Ambulans kembali TERSEDIA jika semua bookingnya sudah Selesai/Ditolak.
+  // ══════════════════════════════════════════════════════════════════
+  // RECALCULATE AMBULANCE
+  // ══════════════════════════════════════════════════════════════════
+
   Future<void> recalculateAmbulanceAvailability(String ambulanceId) async {
     if (ambulanceId.trim().isEmpty) return;
-
     try {
       bool isBusy = false;
-
       for (final status in _activeStatuses) {
-        if (isBusy) break; // sudah ketemu, tidak perlu lanjut
-
+        if (isBusy) break;
         final snap = await _firestore
             .collection('bookings')
             .where('status', isEqualTo: status)
             .get();
-
         for (final doc in snap.docs) {
           final data = doc.data();
-
-          // Cek format lama (single)
           final oldId = data['ambulanceId'] as String?;
           if (oldId != null && oldId == ambulanceId) {
             isBusy = true;
             break;
           }
-
-          // Cek format baru (list)
           final list = data['ambulanceList'];
           if (list is List) {
             for (final item in list) {
@@ -309,88 +263,70 @@ class FirestoreService {
           if (isBusy) break;
         }
       }
-
       await _firestore
           .collection('ambulances')
           .doc(ambulanceId)
           .update({'available': !isBusy});
-
       print('[FS] Ambulans $ambulanceId → available=${!isBusy}');
     } catch (e) {
       print('[FS] recalculateAmbulanceAvailability error ($ambulanceId): $e');
     }
   }
 
-  /// Recalculate ketersediaan untuk semua ambulans yang terdampak
-  /// perubahan assignment pada sebuah booking.
-  ///
-  /// [prevAmbulanceIds] — ID sebelum perubahan
-  /// [newAmbulanceIds]  — ID setelah perubahan
   Future<void> recalculateAllAffectedAmbulances({
     required List<String> prevAmbulanceIds,
     required List<String> newAmbulanceIds,
   }) async {
-    // Gabung semua ID yang terdampak (lama maupun baru), deduplicate
     final affected = <String>{
       ...prevAmbulanceIds.where((id) => id.isNotEmpty),
       ...newAmbulanceIds.where((id) => id.isNotEmpty),
     };
-
     print('[FS] Recalculate ${affected.length} ambulans terdampak: $affected');
-
     for (final id in affected) {
       await recalculateAmbulanceAvailability(id);
     }
   }
 
-  /// Recalculate SEMUA ambulans sekaligus.
-  /// Dipanggil sekali untuk sinkronisasi penuh (misalnya saat app pertama buka).
   Future<void> recalculateAllAmbulances() async {
     try {
       final ambSnap = await _firestore.collection('ambulances').get();
       print('[FS] Recalculate semua: ${ambSnap.docs.length} ambulans');
-
       for (final doc in ambSnap.docs) {
         await recalculateAmbulanceAvailability(doc.id);
       }
-
       print('[FS] Recalculate semua selesai.');
     } catch (e) {
       print('[FS] recalculateAllAmbulances error: $e');
     }
   }
 
-  /// Recalculate ketersediaan petugas berdasarkan SEMUA booking
-  /// aktif yang ada (bukan hanya "Disetujui").
-  ///
-  /// Petugas dianggap TIDAK TERSEDIA jika ia ada dalam setidaknya satu
-  /// booking yang berstatus "Disetujui" ATAU "Menunggu Konfirmasi".
-  /// Petugas kembali TERSEDIA jika semua bookingnya sudah Selesai/Ditolak.
+  // ══════════════════════════════════════════════════════════════════
+  // RECALCULATE PETUGAS — [FIX 6] tulis ke 'users', bukan 'petugas'
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Recalculate field 'available' pada dokumen user petugas di collection 'users'.
+  /// Petugas dianggap TIDAK TERSEDIA jika ia ada dalam booking aktif
+  /// (Disetujui / Menunggu Konfirmasi).
+  /// Petugas kembali TERSEDIA jika semua booking terkaitnya sudah selesai.
   Future<void> recalculatePetugasAvailability(String petugasId) async {
     if (petugasId.trim().isEmpty) return;
-
     try {
       bool isBusy = false;
-
       for (final status in _activeStatuses) {
-        if (isBusy) break; // sudah ketemu, tidak perlu lanjut
-
+        if (isBusy) break;
         final snap = await _firestore
             .collection('bookings')
             .where('status', isEqualTo: status)
             .get();
-
         for (final doc in snap.docs) {
           final data = doc.data();
-
-          // Cek format lama (single)
+          // Format lama
           final oldId = data['petugasId'] as String?;
           if (oldId != null && oldId == petugasId) {
             isBusy = true;
             break;
           }
-
-          // Cek format baru (list)
+          // Format baru
           final list = data['petugasList'];
           if (list is List) {
             for (final item in list) {
@@ -404,8 +340,9 @@ class FirestoreService {
         }
       }
 
+      // [FIX 6] Tulis ke collection 'users', bukan 'petugas'
       await _firestore
-          .collection('petugas')
+          .collection('users')
           .doc(petugasId)
           .update({'available': !isBusy});
 
@@ -415,39 +352,30 @@ class FirestoreService {
     }
   }
 
-  /// Recalculate ketersediaan untuk semua petugas yang terdampak
-  /// perubahan assignment pada sebuah booking.
-  ///
-  /// [prevPetugasIds] — ID sebelum perubahan
-  /// [newPetugasIds]  — ID setelah perubahan
   Future<void> recalculateAllAffectedPetugas({
     required List<String> prevPetugasIds,
     required List<String> newPetugasIds,
   }) async {
-    // Gabung semua ID yang terdampak (lama maupun baru), deduplicate
     final affected = <String>{
       ...prevPetugasIds.where((id) => id.isNotEmpty),
       ...newPetugasIds.where((id) => id.isNotEmpty),
     };
-
     print('[FS] Recalculate ${affected.length} petugas terdampak: $affected');
-
     for (final id in affected) {
       await recalculatePetugasAvailability(id);
     }
   }
 
-  /// Recalculate SEMUA petugas sekaligus.
-  /// Dipanggil sekali untuk sinkronisasi penuh (misalnya saat app pertama buka).
   Future<void> recalculateAllPetugas() async {
     try {
-      final ptSnap = await _firestore.collection('petugas').get();
+      final ptSnap = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'petugas')
+          .get();
       print('[FS] Recalculate semua: ${ptSnap.docs.length} petugas');
-
       for (final doc in ptSnap.docs) {
         await recalculatePetugasAvailability(doc.id);
       }
-
       print('[FS] Recalculate semua petugas selesai.');
     } catch (e) {
       print('[FS] recalculateAllPetugas error: $e');
@@ -458,7 +386,6 @@ class FirestoreService {
   // BOOKING CRUD
   // ══════════════════════════════════════════════════════════════════
 
-  /// [FIX 4] Tambah booking baru ke Firestore dengan field lengkap & konsisten.
   Future<String?> addBooking({
     required String userId,
     required String userName,
@@ -466,45 +393,33 @@ class FirestoreService {
     required String date,
     required String location,
     required String type,
-    List<String> documentNames            = const [],
+    List<String> documentNames = const [],
     List<Map<String, dynamic>> documentFiles = const [],
     double? latitude,
     double? longitude,
   }) async {
     try {
       final ref = await _firestore.collection('bookings').add({
-        // ── Data event ──────────────────────────────────────────────
-        'userId':    userId,
-        'userName':  userName,
+        'userId': userId,
+        'userName': userName,
         'eventName': eventName,
-        'date':      date,
-        'location':  location,
-        'type':      type,
-
-        // ── Status awal ─────────────────────────────────────────────
+        'date': date,
+        'location': location,
+        'type': type,
         'status': 'Menunggu Konfirmasi',
-
-        // ── Dokumen pendukung ────────────────────────────────────────
-        'documents':     documentNames,
+        'documents': documentNames,
         'documentFiles': documentFiles,
-
-        // ── Koordinat lokasi event ───────────────────────────────────
-        'eventLatitude':  latitude,
+        'eventLatitude': latitude,
         'eventLongitude': longitude,
-
-        // ── Petugas & armada (belum di-assign) ──────────────────────
-        'petugasId':      null,
-        'petugasName':    null,
-        'petugasFaskes':  null,
-        'petugasList':    [],
-        'ambulanceId':    null,
+        'petugasId': null,
+        'petugasName': null,
+        'petugasFaskes': null,
+        'petugasList': [],
+        'ambulanceId': null,
         'ambulancePlate': null,
-        'ambulanceList':  [],
-
-        // ── Timestamp ───────────────────────────────────────────────
+        'ambulanceList': [],
         'createdAt': FieldValue.serverTimestamp(),
       });
-
       print('[FS] Booking baru: ${ref.id} | $eventName ($date)');
       return ref.id;
     } catch (e) {
@@ -551,48 +466,67 @@ class FirestoreService {
             }).toList());
   }
 
-  /// [FIX 3] Update status booking dan recalculate ketersediaan ambulans
-  /// yang terdampak — mencakup semua format (lama & baru).
+  /// [FIX 3 + FIX 7] Update status booking dan recalculate ambulans + petugas terdampak.
   Future<bool> updateBookingStatus(String docId, String newStatus) async {
     try {
-      // ── 1. Ambil data booking sebelum diupdate ────────────────────
+      // 1. Ambil data booking sebelum diupdate
       final docSnap =
           await _firestore.collection('bookings').doc(docId).get();
 
       final List<String> affectedAmbulanceIds = [];
+      final List<String> affectedPetugasIds = [];
 
       if (docSnap.exists) {
         final data = docSnap.data()!;
 
-        // Format lama
-        final oldId = data['ambulanceId'] as String?;
-        if (oldId != null && oldId.isNotEmpty) {
-          affectedAmbulanceIds.add(oldId);
+        // Ambulans format lama
+        final oldAmbId = data['ambulanceId'] as String?;
+        if (oldAmbId != null && oldAmbId.isNotEmpty) {
+          affectedAmbulanceIds.add(oldAmbId);
         }
-
-        // Format baru
-        final list = data['ambulanceList'];
-        if (list is List) {
-          for (final item in list) {
+        // Ambulans format baru
+        final ambList = data['ambulanceList'];
+        if (ambList is List) {
+          for (final item in ambList) {
             if (item is Map) {
               final id = item['id'] as String?;
               if (id != null && id.isNotEmpty) affectedAmbulanceIds.add(id);
             }
           }
         }
+
+        // Petugas format lama
+        final oldPtId = data['petugasId'] as String?;
+        if (oldPtId != null && oldPtId.isNotEmpty) {
+          affectedPetugasIds.add(oldPtId);
+        }
+        // Petugas format baru
+        final ptList = data['petugasList'];
+        if (ptList is List) {
+          for (final item in ptList) {
+            if (item is Map) {
+              final id = item['id'] as String?;
+              if (id != null && id.isNotEmpty) affectedPetugasIds.add(id);
+            }
+          }
+        }
       }
 
-      // ── 2. Update status ──────────────────────────────────────────
+      // 2. Update status
       await _firestore
           .collection('bookings')
           .doc(docId)
           .update({'status': newStatus});
-
       print('[FS] Booking $docId → status: $newStatus');
 
-      // ── 3. Recalculate availability setelah status tersimpan ──────
+      // 3. Recalculate ambulans terdampak
       for (final ambId in affectedAmbulanceIds) {
         await recalculateAmbulanceAvailability(ambId);
+      }
+
+      // 4. Recalculate petugas terdampak
+      for (final ptId in affectedPetugasIds) {
+        await recalculatePetugasAvailability(ptId);
       }
 
       return true;
@@ -602,38 +536,51 @@ class FirestoreService {
     }
   }
 
-  /// Hapus booking dan recalculate ambulans yang sebelumnya di-assign.
+  /// [FIX 8] Hapus booking dan recalculate ambulans + petugas yang sebelumnya di-assign.
   Future<bool> deleteBooking(String docId) async {
     try {
-      // Ambil data dulu untuk tahu ambulans mana yang terdampak
       final docSnap =
           await _firestore.collection('bookings').doc(docId).get();
 
-      final List<String> affectedIds = [];
+      final List<String> affectedAmbIds = [];
+      final List<String> affectedPtIds = [];
+
       if (docSnap.exists) {
         final data = docSnap.data()!;
 
-        final oldId = data['ambulanceId'] as String?;
-        if (oldId != null && oldId.isNotEmpty) affectedIds.add(oldId);
-
-        final list = data['ambulanceList'];
-        if (list is List) {
-          for (final item in list) {
+        final oldAmbId = data['ambulanceId'] as String?;
+        if (oldAmbId != null && oldAmbId.isNotEmpty) affectedAmbIds.add(oldAmbId);
+        final ambList = data['ambulanceList'];
+        if (ambList is List) {
+          for (final item in ambList) {
             if (item is Map) {
               final id = item['id'] as String?;
-              if (id != null && id.isNotEmpty) affectedIds.add(id);
+              if (id != null && id.isNotEmpty) affectedAmbIds.add(id);
+            }
+          }
+        }
+
+        final oldPtId = data['petugasId'] as String?;
+        if (oldPtId != null && oldPtId.isNotEmpty) affectedPtIds.add(oldPtId);
+        final ptList = data['petugasList'];
+        if (ptList is List) {
+          for (final item in ptList) {
+            if (item is Map) {
+              final id = item['id'] as String?;
+              if (id != null && id.isNotEmpty) affectedPtIds.add(id);
             }
           }
         }
       }
 
-      // Hapus booking
       await _firestore.collection('bookings').doc(docId).delete();
       print('[FS] Booking $docId dihapus');
 
-      // Recalculate ambulans terdampak
-      for (final ambId in affectedIds) {
+      for (final ambId in affectedAmbIds) {
         await recalculateAmbulanceAvailability(ambId);
+      }
+      for (final ptId in affectedPtIds) {
+        await recalculatePetugasAvailability(ptId);
       }
 
       return true;
@@ -645,11 +592,9 @@ class FirestoreService {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// MODEL: Info konflik ambulans (dipakai UI warning di EditBookingSheet)
+// MODEL: Info konflik
 // ══════════════════════════════════════════════════════════════════════
 
-/// Informasi satu konflik ambulans:
-/// ambulans X sudah dipakai di booking Y dengan status Z.
 class AmbulanceConflictInfo {
   final String bookingId;
   final String eventName;
@@ -661,7 +606,6 @@ class AmbulanceConflictInfo {
     required this.status,
   });
 
-  /// Teks ringkas untuk ditampilkan di UI.
   String get label {
     final badge = status == 'Disetujui' ? '✅' : '⏳';
     return '$badge $eventName';
