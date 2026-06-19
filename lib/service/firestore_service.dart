@@ -8,12 +8,22 @@
 //   [FIX 6] recalculatePetugasAvailability → tulis ke collection 'users' (bukan 'petugas')
 //   [FIX 7] updateBookingStatus → recalculate petugas terdampak juga
 //   [FIX 8] deleteBooking → recalculate petugas terdampak juga
+//   [FIX 9] getAmbulanceConflictDetail & getPetugasConflictDetail → HANYA kunci yang
+//           sudah "Disetujui". Booking "Menunggu Konfirmasi" TIDAK mengunci resource
+//           supaya admin bisa assign petugas/armada yang sama ke booking lain di
+//           tanggal yang sama selama belum ada yang disetujui.
 // ignore_for_file: avoid_print
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ── Status yang dianggap "aktif" (ambulans/petugas tidak boleh double-assign) ──
+// ── Status yang dianggap "aktif" untuk recalculate availability ───────────────
+// (dipakai di recalculate: KEDUA status ini membuat ambulans/petugas "sibuk")
 const _activeStatuses = ['Disetujui', 'Menunggu Konfirmasi'];
+
+// ── Status yang MENGUNCI sumber daya di UI assign (hanya yang sudah pasti) ────
+// Booking "Menunggu Konfirmasi" TIDAK mengunci, agar admin bebas assign ke booking
+// lain. Baru setelah disetujui, resource terkunci.
+const _lockingStatuses = ['Disetujui'];
 
 // ── Status yang dianggap "selesai" (ambulans/petugas bebas kembali) ────────────
 const _doneStatuses = ['Selesai', 'Ditolak', 'Dibatalkan'];
@@ -113,7 +123,8 @@ class FirestoreService {
     String? excludeBookingId,
   }) async {
     try {
-      for (final status in _activeStatuses) {
+      // [FIX 9] Hanya cek _lockingStatuses (Disetujui)
+      for (final status in _lockingStatuses) {
         final snap = await _firestore
             .collection('bookings')
             .where('status', isEqualTo: status)
@@ -146,7 +157,11 @@ class FirestoreService {
   }) async {
     final result = <String, List<AmbulanceConflictInfo>>{};
     try {
-      for (final status in _activeStatuses) {
+      // [FIX 9] Hanya status "Disetujui" yang mengunci armada.
+      // Booking "Menunggu Konfirmasi" TIDAK mengunci, agar admin bisa
+      // assign armada yang sama ke booking lain yang juga belum disetujui
+      // pada tanggal yang sama.
+      for (final status in _lockingStatuses) {
         final snap = await _firestore
             .collection('bookings')
             .where('status', isEqualTo: status)
@@ -191,7 +206,11 @@ class FirestoreService {
   }) async {
     final result = <String, List<AmbulanceConflictInfo>>{};
     try {
-      for (final status in _activeStatuses) {
+      // [FIX 9] Hanya status "Disetujui" yang mengunci petugas.
+      // Booking "Menunggu Konfirmasi" TIDAK mengunci, agar admin bisa
+      // assign petugas yang sama ke booking lain yang juga belum disetujui
+      // pada tanggal yang sama.
+      for (final status in _lockingStatuses) {
         final snap = await _firestore
             .collection('bookings')
             .where('status', isEqualTo: status)
@@ -238,7 +257,9 @@ class FirestoreService {
     if (ambulanceId.trim().isEmpty) return;
     try {
       bool isBusy = false;
-      for (final status in _activeStatuses) {
+      // [FIX 9] Hanya cek _lockingStatuses (Disetujui), bukan _activeStatuses
+      // Booking "Menunggu Konfirmasi" tidak membuat ambulans tidak tersedia
+      for (final status in _lockingStatuses) {
         if (isBusy) break;
         final snap = await _firestore
             .collection('bookings')
@@ -305,14 +326,16 @@ class FirestoreService {
   // ══════════════════════════════════════════════════════════════════
 
   /// Recalculate field 'available' pada dokumen user petugas di collection 'users'.
-  /// Petugas dianggap TIDAK TERSEDIA jika ia ada dalam booking aktif
-  /// (Disetujui / Menunggu Konfirmasi).
-  /// Petugas kembali TERSEDIA jika semua booking terkaitnya sudah selesai.
+  /// Petugas dianggap TIDAK TERSEDIA hanya jika ia ada dalam booking yang sudah
+  /// DISETUJUI. Booking "Menunggu Konfirmasi" TIDAK membuat petugas tidak tersedia,
+  /// agar admin masih bisa assign petugas yang sama ke booking lain yang belum
+  /// disetujui pada tanggal yang sama.
   Future<void> recalculatePetugasAvailability(String petugasId) async {
     if (petugasId.trim().isEmpty) return;
     try {
       bool isBusy = false;
-      for (final status in _activeStatuses) {
+      // [FIX 9] Hanya cek _lockingStatuses (Disetujui), bukan _activeStatuses
+      for (final status in _lockingStatuses) {
         if (isBusy) break;
         final snap = await _firestore
             .collection('bookings')

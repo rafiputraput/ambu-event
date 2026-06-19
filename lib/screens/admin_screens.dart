@@ -1238,68 +1238,142 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             const SizedBox(height: 10),
           ],
  
-          // List petugas
+          // List petugas (card style mirip armada)
           StreamBuilder<QuerySnapshot>(
             stream: _petugasStream,
             builder: (ctx, snap) {
               final list = snap.data?.docs ?? [];
               if (list.isEmpty) return _emptyHint('Belum ada petugas terdaftar');
-              return Container(
-                decoration: BoxDecoration(
-                  color: _bg, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _border)),
-                child: Column(children: list.asMap().entries.map((entry) {
-                  final i   = entry.key;
-                  final doc = entry.value;
-                  final dd  = doc.data() as Map<String,dynamic>;
-                  final n   = dd['name'] as String? ?? doc.id;
-                  final fsk = dd['faskesName'] as String? ?? '';
-                  final sel = _selectedPetugas.any((p) => p.id == doc.id);
-                  final isLast = i == list.length - 1;
- 
-                  // Cek konflik petugas
+              return Column(
+                children: list.map((doc) {
+                  final dd    = doc.data() as Map<String, dynamic>;
+                  final name  = dd['name']       as String? ?? doc.id;
+                  final fsk   = dd['faskesName'] as String? ?? '';
+                  final avail = dd['available']  as bool?   ?? true;
+                  final sel   = _selectedPetugas.any((p) => p.id == doc.id);
+
                   final ptConflicts   = _petugasConflictDetail[doc.id];
                   final hasPtConflict = ptConflicts != null && ptConflicts.isNotEmpty;
- 
+
                   if (hasPtConflict) {
-                    return _buildDisabledPetugasItem(
-                      name: n, faskes: fsk,
-                      conflicts: ptConflicts!, isLast: isLast,
+                    return _buildDisabledPetugasCard(
+                      name: name, faskes: fsk, conflicts: ptConflicts!,
                     );
                   }
- 
-                  return Column(children: [
-                    InkWell(
-                      onTap: () => _togglePetugas(doc),
-                      borderRadius: BorderRadius.circular(12),
+
+                  return GestureDetector(
+                    onTap: () => _togglePetugas(doc),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.only(bottom: 9),
+                      decoration: BoxDecoration(
+                        color: sel ? _greenLight : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: sel ? _green : _border,
+                            width: sel ? 1.5 : 1),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2))
+                        ],
+                      ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                        child: Row(children: [
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 13, vertical: 11),
+                        child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _green.withValues(alpha: sel ? 0.20 : 0.10),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.medical_services_rounded,
+                                color: _green, size: 20),
+                          ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(
+                                name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: sel ? _green : _textPrimary,
+                                ),
+                              ),
+                              if (fsk.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                      color: _bg,
+                                      borderRadius: BorderRadius.circular(5)),
+                                  child: Text(fsk,
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w500,
+                                          color: _textMuted)),
+                                ),
+                              ],
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (avail ? _green : Colors.grey)
+                                      .withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                  Icon(
+                                    avail
+                                        ? Icons.check_circle_rounded
+                                        : Icons.cancel_rounded,
+                                    size: 10,
+                                    color: avail ? _green : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    avail ? 'TERSEDIA' : 'SEDANG BERTUGAS',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: avail ? _green : Colors.grey,
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ]),
+                          ),
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
-                            width: 20, height: 20,
+                            width: 22,
+                            height: 22,
                             decoration: BoxDecoration(
                               color: sel ? _green : Colors.transparent,
-                              border: Border.all(color: sel ? _green : _border, width: 1.5),
+                              border: Border.all(
+                                  color: sel ? _green : _border, width: 1.5),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: sel ? const Icon(Icons.check, size: 13, color: Colors.white) : null,
+                            child: sel
+                                ? const Icon(Icons.check,
+                                    size: 14, color: Colors.white)
+                                : null,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(n, style: TextStyle(
-                                fontSize: 13, fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                                color: sel ? _green : _textPrimary)),
-                            if (fsk.isNotEmpty)
-                              Text(fsk, style: const TextStyle(fontSize: 11, color: _textMuted)),
-                          ])),
-                          Icon(Icons.medical_services_rounded, size: 13, color: Colors.grey.shade300),
                         ]),
                       ),
                     ),
-                    if (!isLast) Divider(height: 1, indent: 46, color: _border),
-                  ]);
-                }).toList()),
+                  );
+                }).toList(),
               );
             },
           ),
@@ -1504,77 +1578,131 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     );
   }
  
-  // ── Disabled item petugas (sudah bertugas di booking lain) ────────
-  Widget _buildDisabledPetugasItem({
+  // ── Disabled card petugas (sudah bertugas di booking lain) — card style ──
+  Widget _buildDisabledPetugasCard({
     required String name,
     required String faskes,
     required List<AmbulanceConflictInfo> conflicts,
-    required bool isLast,
   }) {
     final firstConflict = conflicts.first;
     final moreCount     = conflicts.length - 1;
- 
-    return Column(children: [
-      Container(
-        color: const Color(0xFFF9F9F9),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(children: [
-          // Checkbox abu-abu (non-interaktif, tanpa ikon gembok)
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
-            width: 20, height: 20,
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(6),
+              color: Colors.grey.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(Icons.medical_services_rounded,
+                color: Colors.grey.shade400, size: 20),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: Colors.grey.shade500,
-                decoration: TextDecoration.lineThrough,
-                decorationColor: Colors.grey.shade400)),
-            if (faskes.isNotEmpty)
-              Text(faskes, style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
-            const SizedBox(height: 4),
-            // Label "Bertugas di: ..."
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: _orangeLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _orange.withValues(alpha: 0.4)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.event_busy_rounded, size: 10, color: _orange),
-                const SizedBox(width: 4),
-                Flexible(child: Text(
-                  'Bertugas: "${firstConflict.eventName}"'
-                  '${moreCount > 0 ? ' +$moreCount lagi' : ''}',
-                  style: const TextStyle(fontSize: 10, color: _orange, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                )),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Row(children: [
+                const Icon(Icons.lock_rounded, size: 12, color: Colors.grey),
                 const SizedBox(width: 5),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: firstConflict.status == 'Disetujui' ? _green : _orange,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                Expanded(
                   child: Text(
-                    firstConflict.status == 'Disetujui' ? 'Disetujui' : 'Menunggu',
-                    style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700),
+                    name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                      decoration: TextDecoration.lineThrough,
+                      decorationColor: Colors.grey.shade400,
+                    ),
                   ),
                 ),
               ]),
-            ),
-          ])),
-          Icon(Icons.medical_services_rounded, size: 13, color: Colors.grey.shade200),
+              if (faskes.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(5)),
+                  child: Text(faskes,
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade500)),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _orangeLight,
+                  borderRadius: BorderRadius.circular(20),
+                  border:
+                      Border.all(color: _orange.withValues(alpha: 0.4)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.event_busy_rounded,
+                      size: 11, color: _orange),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Bertugas: "${firstConflict.eventName}"'
+                      '${moreCount > 0 ? ' +$moreCount lagi' : ''}',
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: _orange,
+                          fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: firstConflict.status == 'Disetujui'
+                          ? _green
+                          : _orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      firstConflict.status == 'Disetujui'
+                          ? 'Disetujui'
+                          : 'Menunggu',
+                      style: const TextStyle(
+                          fontSize: 8,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(6)),
+            child: Icon(Icons.lock_rounded,
+                size: 13, color: Colors.grey.shade400),
+          ),
         ]),
       ),
-      if (!isLast) Divider(height: 1, indent: 46, color: _border),
-    ]);
+    );
   }
  
   // ── Disabled card armada (sudah dipakai di booking lain) ──────────
