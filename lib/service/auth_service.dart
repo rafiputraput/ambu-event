@@ -1,5 +1,7 @@
 // lib/service/auth_service.dart
 // UPDATED: adminCreateUser menerima faskesId & faskesName untuk role petugas
+// UPDATED: signInWithGoogle — SELF-HEAL otomatis jika dokumen Firestore
+//          admin terhapus tidak sengaja, asal emailnya ada di _adminEmails
 // ignore_for_file: avoid_print
 
 import 'dart:convert';
@@ -14,6 +16,10 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ─────────────────────────────────────────────────────────────────
+  // Daftar email yang SELALU dianggap admin.
+  // Tambahkan email lain di sini jika perlu (huruf kecil semua).
+  // ─────────────────────────────────────────────────────────────────
   final List<String> _adminEmails = [
     'rafiputraadipratama4@gmail.com',
     'campgreget@gmail.com',
@@ -110,6 +116,8 @@ class AuthService {
       final User? user = result.user;
       if (user == null) return GoogleAuthResult.error('Gagal mendapatkan data akun.');
       final googleEmail = (user.email ?? '').toLowerCase();
+
+      // 1. Cek dokumen Firestore berdasarkan UID
       final docSnap = await _firestore.collection('users').doc(user.uid).get();
       if (docSnap.exists) {
         final userData = await getUserData(user.uid);
@@ -120,13 +128,43 @@ class AuthService {
         }
         return GoogleAuthResult.success(userData);
       }
+
+      // 2. Kalau tidak ketemu berdasarkan UID, cek berdasarkan email
+      //    (kasus migrasi/akun lama)
       final emailQuery = await _firestore.collection('users')
           .where('email', isEqualTo: googleEmail).limit(1).get();
+
       if (emailQuery.docs.isEmpty) {
+        // ── SELF-HEAL ────────────────────────────────────────────────
+        // Dokumen Firestore tidak ditemukan sama sekali (kemungkinan
+        // terhapus tidak sengaja dari halaman "Kelola User"), tapi akun
+        // Google Auth-nya masih valid dan aktif. Jika emailnya termasuk
+        // daftar admin tetap (_adminEmails), buat ulang dokumennya
+        // secara OTOMATIS dengan role 'admin' — sehingga tidak perlu
+        // perbaikan manual lewat Firebase Console lagi.
+        if (_adminEmails.contains(googleEmail)) {
+          final restoredAdmin = UserModel(
+            uid: user.uid,
+            email: googleEmail,
+            name: user.displayName ?? 'Admin',
+            photoUrl: user.photoURL ?? '',
+            role: 'admin',
+            createdAt: DateTime.now(),
+          );
+          await _firestore.collection('users').doc(user.uid)
+              .set(restoredAdmin.toMap());
+          print('[AUTH] 🛟 Self-heal: dokumen admin "$googleEmail" '
+              'dibuat ulang otomatis (uid=${user.uid})');
+          return GoogleAuthResult.success(restoredAdmin);
+        }
+        // ───────────────────────────────────────────────────────────
+
         await _auth.signOut();
         await _googleSignIn.signOut();
         return GoogleAuthResult.notRegistered();
       }
+
+      // 3. Migrasi dokumen lama (UID berbeda tapi email sama)
       final oldDoc  = emailQuery.docs.first;
       final oldData = oldDoc.data();
       final migratedUser = UserModel(
