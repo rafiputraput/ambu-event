@@ -9,6 +9,7 @@
 // UPDATED: [FIX 6] Hapus booking via deleteBooking (recalculate ambulans otomatis)
 // UPDATED: [FIX 7] Petugas konflik di Edit Booking Sheet = DISABLED (tidak bisa dipilih)
 // UPDATED: [FIX 8] Auto-lepas petugas konflik dari selection saat sheet dibuka
+// UPDATED: [FIX 9] Banner & badge diselaraskan: hanya "Disetujui" yang mengunci resource
 // ignore_for_file: avoid_print
  
 import 'dart:io';
@@ -22,7 +23,7 @@ import '../service/notification_service.dart';
 import '../service/auth_service.dart';
 import '../service/map_service.dart';
  
-// ─────────────────────────── PALETTE (soft/muted) ─────────────────────
+// ─────────────────────────── PALETTE (soft/muted) ─────────────────
 const _red    = Color(0xFFC0392B);
 const _green  = Color(0xFF2E7D6B);
 const _blue   = Color(0xFF4A6FA5);
@@ -851,8 +852,8 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           _petugasConflictDetail = results[1];
  
           // Auto-lepas petugas yang sebelumnya sudah terpilih di booking ini
-          // tetapi ternyata bentrok dengan booking lain (Disetujui /
-          // Menunggu Konfirmasi) pada tanggal yang sama.
+          // tetapi ternyata bentrok dengan booking lain (Disetujui)
+          // pada tanggal yang sama.
           _selectedPetugas.removeWhere(
             (p) => _petugasConflictDetail.containsKey(p.id),
           );
@@ -881,13 +882,12 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
  
     if (hasConflict && !alreadySel) {
       final namaEvent = conflicts!.first.eventName;
-      final status    = conflicts.first.status;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Row(children: [
           const Icon(Icons.lock_rounded, color: Colors.white, size: 15),
           const SizedBox(width: 8),
           Expanded(child: Text(
-            'Petugas ini sudah bertugas di "$namaEvent" ($status)',
+            'Petugas ini sudah bertugas di "$namaEvent" (Disetujui)',
             style: const TextStyle(fontSize: 12),
           )),
         ]),
@@ -926,13 +926,12 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
  
     if (hasConflict && !alreadySel) {
       final namaEvent = conflicts!.first.eventName;
-      final status    = conflicts.first.status;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Row(children: [
           const Icon(Icons.lock_rounded, color: Colors.white, size: 15),
           const SizedBox(width: 8),
           Expanded(child: Text(
-            'Armada ini sudah dipakai di "$namaEvent" ($status)',
+            'Armada ini sudah dipakai di "$namaEvent" (Disetujui)',
             style: const TextStyle(fontSize: 12),
           )),
         ]),
@@ -1022,9 +1021,9 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
       );
     } catch (e) {
       print('Recalculate ambulance error: $e');
-
     }
-// Recalculate ketersediaan petugas yang terdampak
+
+    // Recalculate ketersediaan petugas yang terdampak
     try {
       await widget.fs.recalculateAllAffectedPetugas(
         prevPetugasIds: prevPetugasIds,
@@ -1202,7 +1201,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
               style: TextStyle(fontSize: 11, color: _textMuted)),
           const SizedBox(height: 8),
  
-          // Banner petugas terkunci
+          // ── [FIX 9] Banner petugas terkunci: teks diselaraskan dengan logika _lockingStatuses ──
           if (_totalPetugasConflicts > 0) ...[
             Container(
               padding: const EdgeInsets.all(10),
@@ -1215,10 +1214,10 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                 const Icon(Icons.lock_rounded, color: _orange, size: 15),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$_totalPetugasConflicts petugas terkunci — sudah bertugas di booking lain pada tanggal ini.',
+                  Text('$_totalPetugasConflicts petugas terkunci — sudah bertugas di booking yang Disetujui pada tanggal ini.',
                       style: const TextStyle(fontSize: 11, color: _orange, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  const Text('Mencakup booking Disetujui maupun Menunggu Konfirmasi.',
+                  const Text('Petugas pada booking "Menunggu Konfirmasi" masih bisa dipilih.',
                       style: TextStyle(fontSize: 10, color: _orange)),
                 ])),
               ]),
@@ -1238,7 +1237,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
             const SizedBox(height: 10),
           ],
  
-          // List petugas (card style mirip armada)
+          // List petugas (card style sama persis dengan armada)
           StreamBuilder<QuerySnapshot>(
             stream: _petugasStream,
             builder: (ctx, snap) {
@@ -1255,12 +1254,14 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   final ptConflicts   = _petugasConflictDetail[doc.id];
                   final hasPtConflict = ptConflicts != null && ptConflicts.isNotEmpty;
 
+                  // ── Disabled card: petugas sudah dikunci booking Disetujui lain ──
                   if (hasPtConflict) {
                     return _buildDisabledPetugasCard(
                       name: name, faskes: fsk, conflicts: ptConflicts!,
                     );
                   }
 
+                  // ── Card normal: bisa dipilih ──
                   return GestureDetector(
                     onTap: () => _togglePetugas(doc),
                     child: AnimatedContainer(
@@ -1395,7 +1396,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
           ]),
           const SizedBox(height: 4),
  
-          // Banner armada terkunci
+          // ── [FIX 9] Banner armada terkunci: teks diselaraskan dengan logika _lockingStatuses ──
           if (_totalAmbConflicts > 0) ...[
             Container(
               padding: const EdgeInsets.all(10),
@@ -1408,10 +1409,10 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                 const Icon(Icons.lock_rounded, color: _orange, size: 15),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$_totalAmbConflicts armada dikunci — sudah terjadwal di booking lain pada tanggal ini.',
+                  Text('$_totalAmbConflicts armada dikunci — sudah terjadwal di booking yang Disetujui pada tanggal ini.',
                       style: const TextStyle(fontSize: 11, color: _orange, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  const Text('Mencakup booking Disetujui maupun Menunggu Konfirmasi.',
+                  const Text('Armada pada booking "Menunggu Konfirmasi" masih bisa dipilih.',
                       style: TextStyle(fontSize: 10, color: _orange)),
                 ])),
               ]),
@@ -1463,6 +1464,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   if (type.contains('Gawat Darurat')) { typeColor = _red; typeIcon = Icons.emergency_rounded; }
                   else if (type.contains('Transport')) { typeColor = _blue; typeIcon = Icons.airport_shuttle_rounded; }
  
+                  // ── Disabled card: armada sudah dikunci booking Disetujui lain ──
                   if (hasConflict) {
                     return _buildDisabledAmbCard(
                       plate: plate, type: type, typeIcon: typeIcon,
@@ -1470,6 +1472,7 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                     );
                   }
  
+                  // ── Card normal: bisa dipilih ──
                   return GestureDetector(
                     onTap: () => _toggleAmbulance(doc),
                     child: AnimatedContainer(
@@ -1578,7 +1581,8 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     );
   }
  
-  // ── Disabled card petugas (sudah bertugas di booking lain) — card style ──
+  // ── [FIX 9] Disabled card petugas — badge selalu "Disetujui" karena
+  //    hanya booking Disetujui yang bisa mengunci petugas ──────────────
   Widget _buildDisabledPetugasCard({
     required String name,
     required String faskes,
@@ -1668,20 +1672,17 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                     ),
                   ),
                   const SizedBox(width: 5),
+                  // [FIX 9] Badge selalu "Disetujui" karena hanya status itu yang mengunci
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
-                      color: firstConflict.status == 'Disetujui'
-                          ? _green
-                          : _orange,
+                      color: _green,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      firstConflict.status == 'Disetujui'
-                          ? 'Disetujui'
-                          : 'Menunggu',
-                      style: const TextStyle(
+                    child: const Text(
+                      'Disetujui',
+                      style: TextStyle(
                           fontSize: 8,
                           color: Colors.white,
                           fontWeight: FontWeight.w700),
@@ -1705,7 +1706,8 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
     );
   }
  
-  // ── Disabled card armada (sudah dipakai di booking lain) ──────────
+  // ── [FIX 9] Disabled card armada — badge selalu "Disetujui" karena
+  //    hanya booking Disetujui yang bisa mengunci armada ───────────────
   Widget _buildDisabledAmbCard({
     required String plate,
     required String type,
@@ -1790,15 +1792,16 @@ class _EditBookingSheetState extends State<_EditBookingSheet> {
                   overflow: TextOverflow.ellipsis,
                 )),
                 const SizedBox(width: 5),
+                // [FIX 9] Badge selalu "Disetujui" karena hanya status itu yang mengunci
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
-                    color: firstConflict.status == 'Disetujui' ? _green : _orange,
+                    color: _green,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    firstConflict.status == 'Disetujui' ? 'Disetujui' : 'Menunggu',
-                    style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700),
+                  child: const Text(
+                    'Disetujui',
+                    style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700),
                   ),
                 ),
               ]),
@@ -2289,6 +2292,7 @@ class _RekapBulananTabState extends State<_RekapBulananTab>
       ],
     );
   }
+
   Widget _emptyRekap() => Center(child: Padding(padding: const EdgeInsets.all(32),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       Container(padding: const EdgeInsets.all(24),
