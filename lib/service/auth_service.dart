@@ -22,7 +22,7 @@ class AuthService {
   // ─────────────────────────────────────────────────────────────────
   final List<String> _adminEmails = [
     'rafiputraadipratama4@gmail.com',
-    'campgreget@gmail.com',
+    'rafiputraadipratama9@gmail.com',
   ];
 
   static const String _webApiKey = 'AIzaSyBQ8_dBqeNOanvnptDBE3AMlE5X4SENT1g';
