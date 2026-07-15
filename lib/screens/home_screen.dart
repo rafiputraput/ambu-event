@@ -99,6 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
     {'label': 'Olahraga',     'icon': Icons.emoji_events},
     {'label': 'Pengajian',    'icon': Icons.mosque},
     {'label': 'Pencak Silat', 'icon': Icons.sports_martial_arts},
+    {'label': 'Lainnya',       'icon': Icons.music_note},
+    
   ];
 
   @override
@@ -323,6 +325,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             _kRow(Icons.category,       'Tipe Acara', widget.eventType),
             if (_pickedPhotos.isNotEmpty) ...[
+              
+
               const SizedBox(height: 8),
               _kRow(Icons.photo_library, 'Foto',
                   '${_pickedPhotos.length} foto · ${_totalSizeLabel()}'),
