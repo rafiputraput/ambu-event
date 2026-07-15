@@ -99,8 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     {'label': 'Olahraga',     'icon': Icons.emoji_events},
     {'label': 'Pengajian',    'icon': Icons.mosque},
     {'label': 'Pencak Silat', 'icon': Icons.sports_martial_arts},
-    {'label': 'Lainnya',       'icon': Icons.music_note},
-    
+    {'label': 'Lainnya',      'icon': Icons.more_horiz},
   ];
 
   @override
@@ -909,6 +908,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(child: _typeBtn(_eventTypes[2]['label'] as String, _eventTypes[2]['icon'] as IconData)),
                       const SizedBox(width: 8),
                       Expanded(child: _typeBtn(_eventTypes[3]['label'] as String, _eventTypes[3]['icon'] as IconData)),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: _typeBtn(_eventTypes[4]['label'] as String, _eventTypes[4]['icon'] as IconData)),
                     ]),
                   ]),
                 ]),
