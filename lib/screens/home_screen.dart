@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     {'label': 'Olahraga',     'icon': Icons.emoji_events},
     {'label': 'Pengajian',    'icon': Icons.mosque},
     {'label': 'Pencak Silat', 'icon': Icons.sports_martial_arts},
-    {'label': 'Lain-Lain',      'icon': Icons.more_horiz},
+     {'label': 'Lain-Lain',  'icon': Icons.more_horiz},
   ];
 
   @override
